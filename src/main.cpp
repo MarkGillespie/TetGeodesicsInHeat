@@ -5,6 +5,8 @@
 #include "polyscope/polyscope.h"
 #include "polyscope/surface_mesh.h"
 
+#include "tet.h"
+
 #include "args/args.hxx"
 #include "imgui.h"
 
@@ -28,7 +30,7 @@ int main(int argc, char **argv) {
   // Configure the argument parser
   args::ArgumentParser parser("Geometry program");
   args::Positional<std::string> inputFilename(parser, "mesh",
-                                              "Mesh to be processed.");
+                                              "Tet mesh (ele file) to be processed.");
 
   // Parse args
   try {
@@ -42,29 +44,16 @@ int main(int argc, char **argv) {
     return 1;
   }
 
-  std::string filename = "../../meshes/bunny_small.obj";
+  std::string filename = "../../tetgen/bunny_small.1.ele";
   // Make sure a mesh name was given
   if (inputFilename) {
     filename = args::get(inputFilename);
   }
 
-  // Initialize polyscope
-  polyscope::init();
 
-  // Set the callback function
-  polyscope::state::userCallback = myCallback;
-
-  // Load mesh
-  std::tie(mesh, geometry) = loadMesh(filename);
-
-  // Register the mesh with polyscope
-  psMesh = polyscope::registerSurfaceMesh(
-      polyscope::guessNiceNameFromPath(filename),
-      geometry->inputVertexPositions, mesh->getFaceVertexList(),
-      polyscopePermutations(*mesh));
-
-  // Give control to the polyscope gui
-  polyscope::show();
+  TetMesh* mesh = TetMesh::loadFromFile(filename);
+  cout << "nVertices: " << mesh->vertices.size() << endl;
+  cout << "nTets:   : " << mesh->tets.size() << endl;
 
   return EXIT_SUCCESS;
 }

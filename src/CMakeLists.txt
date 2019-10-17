@@ -5,12 +5,19 @@ if (CMAKE_BINARY_DIR STREQUAL CMAKE_SOURCE_DIR)
     message(FATAL_ERROR "Source and build directories cannot be the same. Go use the /build directory.")
 endif()
 
+add_library(
+    tetMesh
+    tet.h
+    tet.cpp
+)
+target_link_libraries(tetMesh geometry-central)
+
 add_executable(
   run
   main.cpp
 )
 target_include_directories(run PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/../include")
-target_link_libraries(run polyscope geometry-central)
+target_link_libraries(run polyscope geometry-central tetMesh)
 
 option(PACKAGE_TESTS "Build the tests" ON)
 
