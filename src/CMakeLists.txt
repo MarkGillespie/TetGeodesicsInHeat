@@ -10,7 +10,7 @@ add_library(
     tet.h
     tet.cpp
 )
-target_link_libraries(tetMesh geometry-central)
+target_link_libraries(tetMesh geometry-central polyscope)
 
 add_executable(
   run

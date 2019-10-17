@@ -1,8 +1,33 @@
 #include "tet.h"
 
-Tet::Tet() : verts({0, 0, 0, 0}), a(verts[0]), b(verts[1]), c(verts[2]), d(verts[3]), neigh({0, 0, 0, 0}), A(neigh[0]), B(neigh[1]), C(neigh[2]), D(neigh[3]) {}
-
 TetMesh::TetMesh(){}
+
+std::vector<glm::vec3> TetMesh::vertexPositions() {
+    std::vector<glm::vec3> vertexPositions;
+    for (Vertex v : vertices) {
+        vertexPositions.emplace_back(glm::vec3{v.position.x, v.position.y, v.position.z});
+    }
+
+    return vertexPositions;
+}
+
+std::vector<std::vector<size_t>> TetMesh::faces() {
+    std::vector<std::vector<size_t>> faces;
+    for (Tet t : tets) {
+        size_t a = t.verts[0];
+        size_t b = t.verts[1];
+        size_t c = t.verts[2];
+        size_t d = t.verts[3];
+        faces.emplace_back(std::vector<size_t>{t.verts[0], t.verts[1], t.verts[2]});
+        faces.emplace_back(std::vector<size_t>{t.verts[0], t.verts[2], t.verts[3]});
+        faces.emplace_back(std::vector<size_t>{t.verts[0], t.verts[3], t.verts[1]});
+        faces.emplace_back(std::vector<size_t>{t.verts[2], t.verts[3], t.verts[1]});
+    }
+
+    Tet t = tets[0];
+    t.verts[0] = 4;
+    return faces;
+}
 
 TetMesh* TetMesh::construct(const std::vector<Vector3>& positions,
             const std::vector<std::vector<size_t>>& tets,
@@ -15,50 +40,29 @@ TetMesh* TetMesh::construct(const std::vector<Vector3>& positions,
         mesh->vertices.emplace_back(v);
     }
 
-    for (size_t i = 0; i < tets.size(); ++i) {
+    for (size_t n = 0; n < tets.size(); ++n) {
         Tet t;
-        t.verts = tets[i];
-        t.neigh = neigh[i];
+        t.verts = tets[n];
+        t.neigh = neigh[n];
         size_t tIdx = tets.size();
 
-        t.ab = mesh->edges.size();;
-        mesh->vertices[t.a].edges.emplace_back(t.ab);
-        mesh->vertices[t.b].edges.emplace_back(t.ab);
-        mesh->edges.emplace_back(PartialEdge{t.a, t.b, tIdx});
-
-        t.ac = mesh->edges.size();;
-        mesh->vertices[t.a].edges.emplace_back(t.ac);
-        mesh->vertices[t.c].edges.emplace_back(t.ac);
-        mesh->edges.emplace_back(PartialEdge{t.a, t.c, tIdx});
-
-        t.ad = mesh->edges.size();
-        mesh->vertices[t.a].edges.emplace_back(t.ad);
-        mesh->vertices[t.d].edges.emplace_back(t.ad);
-        mesh->edges.emplace_back(PartialEdge{t.a, t.d, tIdx});
-
-        t.bc = mesh->edges.size();
-        mesh->vertices[t.b].edges.emplace_back(t.bc);
-        mesh->vertices[t.c].edges.emplace_back(t.bc);
-        mesh->edges.emplace_back(PartialEdge{t.b, t.c, tIdx});
-
-        t.bd = mesh->edges.size();
-        mesh->vertices[t.b].edges.emplace_back(t.bd);
-        mesh->vertices[t.d].edges.emplace_back(t.bd);
-        mesh->edges.emplace_back(PartialEdge{t.b, t.d, tIdx});
-
-        t.cd = mesh->edges.size();
-        mesh->vertices[t.c].edges.emplace_back(t.cd);
-        mesh->vertices[t.d].edges.emplace_back(t.cd);
-        mesh->edges.emplace_back(PartialEdge{t.c, t.d, tIdx});
-
-        mesh->tets.emplace_back(t);
-    }
-
-    for (Tet t : mesh->tets) {
-        // opposite tet A shares vertices b, c, d
-        for (size_t i = 0; i < mesh->tets.size(); ++i) {
-
+        for (size_t i = 0; i < 4; ++i) {
+            assert(t.verts[i] < mesh->vertices.size());
+            for (size_t j = 0; j < i; ++j) {
+                assert(t.verts[i] != t.verts[j]);
+            }
         }
+
+        for (size_t i = 0; i < 4; ++i) {
+            for (size_t j = i+1; j < 4; ++j) {
+                size_t eIdx = mesh->edges.size();
+                t.edges.emplace_back(eIdx);
+                mesh->vertices[t.verts[i]].edges.emplace_back(eIdx);
+                mesh->vertices[t.verts[j]].edges.emplace_back(eIdx);
+                mesh->edges.emplace_back(PartialEdge{t.verts[i], t.verts[j], tIdx});
+            }
+        }
+        mesh->tets.emplace_back(t);
     }
 
     return mesh;
@@ -104,7 +108,22 @@ TetMesh* TetMesh::loadFromFile(string elePath) {
             istringstream ss(line);
             size_t idx, a, b, c, d;
             ss >> idx >> a >> b >> c >> d;
-            tets.emplace_back(std::vector<size_t>{a, b, c, d});
+            assert(a <= verts.size());
+            assert(b <= verts.size());
+            assert(c <= verts.size());
+            assert(d <= verts.size());
+            assert(a > 0);
+            assert(b > 0);
+            assert(c > 0);
+            assert(d > 0);
+
+            // 1-indexed?
+            tets.emplace_back(std::vector<size_t>{a - 1, b - 1, c - 1, d - 1});
+            assert(a-1 < verts.size());
+            assert(b-1 < verts.size());
+            assert(c-1 < verts.size());
+            assert(d-1 < verts.size());
+            //tets.emplace_back(std::vector<size_t>{a , b , c , d });
             assert(idx == tets.size());
         }
 
