@@ -28,8 +28,9 @@ class PartialEdge {
 class Tet {
     public:
         std::vector<size_t> verts; // indices of vertices
-        std::vector<size_t> edges; // indices of partial edges
-        std::vector<size_t> neigh; // indices of neighbors
+        std::vector<size_t> edges; // indices of PartialEdges
+        std::vector<size_t> neigh; // indices of neighboring Tets
+                                   // neigh[i] is opposite verts[i]
 };
 
 class TetMesh {

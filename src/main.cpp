@@ -18,7 +18,7 @@ using namespace geometrycentral::surface;
 TetMesh* mesh;
 
 // Polyscope visualization handle, to quickly add data to the surface
-polyscope::SurfaceMesh *psMesh;
+polyscope::TetMesh *psMesh;
 
 // A user-defined callback, for creating control panels (etc)
 // Use ImGUI commands to build whatever you want here, see
@@ -54,6 +54,13 @@ int main(int argc, char **argv) {
   mesh = TetMesh::loadFromFile(filename);
   std::vector<glm::vec3> pos = mesh->vertexPositions();
 
+  std::vector<double> xData, yData, zData;
+  for (glm::vec3 v : pos) {
+      xData.emplace_back(v.x);
+      yData.emplace_back(v.y);
+      zData.emplace_back(v.z);
+  }
+
 
   // Initialize polyscope
   polyscope::init();
@@ -62,9 +69,13 @@ int main(int argc, char **argv) {
   polyscope::state::userCallback = myCallback;
 
   // Register the mesh with polyscope
-  polyscope::registerTetMesh(
+  psMesh = polyscope::registerTetMesh(
       polyscope::guessNiceNameFromPath(filename),
       mesh->vertexPositions(), mesh->tetList());
+  psMesh->addVertexScalarQuantity("x", xData);
+  psMesh->addVertexScalarQuantity("y", yData);
+  psMesh->addVertexScalarQuantity("z", zData);
+
 
   // Give control to the polyscope gui
   polyscope::show();

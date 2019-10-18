@@ -2,10 +2,10 @@
 
 namespace polyscope{
 
-TetMesh::TetMesh(std::string name_) : Structure(name_), name(name_) {}
+TetMesh::TetMesh(std::string name_) : QuantityStructure<TetMesh>(name_), name(name_) {}
 
 TetMesh::TetMesh(std::string name_, std::vector<glm::vec3> vertices_, std::vector<std::vector<size_t>> tets_)
-    : Structure(name_), vertices(vertices_), tets(tets_), name(name_) {
+    : QuantityStructure<TetMesh>(name_), vertices(vertices_), tets(tets_), name(name_) {
 
     for (size_t i = 0; i < tets.size(); ++i) {
         std::vector<size_t> t = tets[i];
@@ -20,8 +20,6 @@ TetMesh::TetMesh(std::string name_, std::vector<glm::vec3> vertices_, std::vecto
     baseColor = getNextUniqueColor();
     tetColor = baseColor;
     edgeColor = glm::vec3{0, 0, 0};
-
-    std::cout << "DONE INITIALIZING" << std::endl;
 }
 
 void TetMesh::computeGeometryData() {
@@ -49,7 +47,8 @@ void TetMesh::computeGeometryData() {
     faceNormals[iF] = fN;
   }
 
-  // Loop over tets to compute centers
+  // Loop over tets to compute centers and vertex areas
+  vertexVolumes = std::vector<double>(vertices.size(), 0.0);
   for (size_t iT = 0; iT < tets.size(); ++iT) {
       glm::vec3 p0 = vertices[tets[iT][0]];
       glm::vec3 p1 = vertices[tets[iT][1]];
@@ -58,7 +57,16 @@ void TetMesh::computeGeometryData() {
       glm::vec3 center = p0 + p1 + p2 + p3;
       center /= 4;
       tetCenters.emplace_back(center);
+
+      double vol = glm::dot(p0 - p3, glm::cross(p1 - p3, p2 - p3)) / 6;
+      for (size_t i = 0; i < 4; ++i) {
+          vertexVolumes[tets[iT][i]] += vol / 4;
+      }
   }
+}
+
+size_t TetMesh::nFaces() {
+    return faces.size();
 }
 
 void TetMesh::draw() {
@@ -66,15 +74,23 @@ void TetMesh::draw() {
         return;
     }
 
-    if (program == nullptr) {
-        prepare();
+    if (dominantQuantity == nullptr) {
+        if (program == nullptr) {
+            prepare();
+        }
+
+        // Set uniforms
+        setTransformUniforms(*program);
+        program->setUniform("u_basecolor", tetColor);
+
+        program->draw();
     }
 
-    // Set uniforms
-    setTransformUniforms(*program);
-    program->setUniform("u_basecolor", tetColor);
-
-    program->draw();
+    // Draw the quantities
+    for (auto& x : quantities) {
+      x.second->draw();
+    }
+    quantitiesMustRefillBuffers = false;
 
     // Draw the wireframe
     if (edgeWidth > 0) {
@@ -245,6 +261,8 @@ void TetMesh::refillBuffers() {
 
     if (edgeWidth > 0)
         fillGeometryBuffersWireframe(*wireframeProgram);
+
+    quantitiesMustRefillBuffers = true;
 }
 
 void TetMesh::buildCustomUI(){
@@ -289,8 +307,6 @@ void TetMesh::buildCustomUI(){
 
 }
 void TetMesh::buildCustomOptionsUI(){};   // overridden by childen to add to the options menu
-void TetMesh::buildQuantitiesUI(){};      // build quantities, if they exist-> Overridden by QuantityStructure.
-void TetMesh::buildSharedStructureUI(){}; // Draw any UI elements shared between all instances of the structure
 void TetMesh::buildPickUI(size_t localPickID){}; // Draw pick UI elements when index localPickID is selected
 
 // = Length and bounding box (returned in object coordinates)
@@ -314,6 +330,14 @@ double TetMesh::lengthScale() {
 
 std::string TetMesh::typeName() {
     return "TetMesh";
+}
+
+TetVertexScalarQuantity* TetMesh::addVertexScalarQuantityImpl(std::string name, const std::vector<double>& data,
+                                                                      DataType type) {
+  TetVertexScalarQuantity* q =
+      new TetVertexScalarQuantity(name, data, *this, type);
+  addQuantity(q);
+  return q;
 }
 
 } // polyscope

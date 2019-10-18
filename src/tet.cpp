@@ -62,9 +62,12 @@ TetMesh* TetMesh::construct(const std::vector<Vector3>& positions,
             t.verts[1] = temp;
         }
 
+        // TODO: Order the neighbors so that neigh[i] is opposite verts[i]
         t.neigh = neigh[n];
-        size_t tIdx = tets.size();
 
+
+        // Add in PartialEdges
+        size_t tIdx = tets.size();
         for (size_t i = 0; i < 4; ++i) {
             for (size_t j = i+1; j < 4; ++j) {
                 size_t eIdx = mesh->edges.size();

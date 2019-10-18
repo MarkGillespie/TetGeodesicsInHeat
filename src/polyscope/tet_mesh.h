@@ -8,6 +8,8 @@
 #include "polyscope/gl/shaders/surface_shaders.h"
 #include "polyscope/gl/shaders/wireframe_shaders.h"
 
+#include "tet_scalar_quantity.h"
+
 #include "glm/glm.hpp"
 
 #include <iostream>
@@ -15,8 +17,14 @@
 
 namespace polyscope{
 
-class TetMesh : public Structure {
+// Forward declarations for quantities
+class TetVertexScalarQuantity;
+class TetFaceVectorQuantity;
+
+class TetMesh : public QuantityStructure<TetMesh> {
     public:
+        typedef Quantity<TetMesh> QuantityType;
+
         TetMesh(std::string name_);
         TetMesh(std::string name_, std::vector<glm::vec3> vertices_, std::vector<std::vector<size_t>> tets_);
 
@@ -26,6 +34,9 @@ class TetMesh : public Structure {
         std::vector<std::vector<size_t>> faces;
         std::vector<glm::vec3> faceNormals;
         std::vector<glm::vec3> tetCenters;
+
+        std::vector<double> vertexVolumes;
+        size_t nFaces();
 
         void computeGeometryData();
 
@@ -37,8 +48,6 @@ class TetMesh : public Structure {
         void buildUI();
         void buildCustomUI();      // overridden by childen to add custom UI data
         void buildCustomOptionsUI();   // overridden by childen to add to the options menu
-        void buildQuantitiesUI();      // build quantities, if they exist. Overridden by QuantityStructure.
-        void buildSharedStructureUI(); // Draw any UI elements shared between all instances of the structure
         void buildPickUI(size_t localPickID); // Draw pick UI elements when index localPickID is selected
       
         // = Identifying data
@@ -55,6 +64,7 @@ class TetMesh : public Structure {
         void centerBoundingBox();
 
         // = Drawing related things
+        bool quantitiesMustRefillBuffers = false;
         std::unique_ptr<gl::GLProgram> program;
         std::unique_ptr<gl::GLProgram> wireframeProgram;
         void prepare();
@@ -72,11 +82,19 @@ class TetMesh : public Structure {
         float sliceDist = 1.0;
         float sliceTheta = 0.0;
         float slicePhi = 0.0;
+
+        template <class T>
+        TetVertexScalarQuantity* addVertexScalarQuantity(std::string name, const T& data, DataType type = DataType::STANDARD) {
+            validateSize(data, vertices.size(), "vertex scalar quantity " + name);
+            return addVertexScalarQuantityImpl(name, standardizeArray<double, T>(data), type);
+        }
+        TetVertexScalarQuantity* addVertexScalarQuantityImpl(std::string name, const std::vector<double>& data, DataType type);
   
     protected:
         // = State
         bool enabled = true;
 };
+
 // Register functions
 template <class V, class T>
 TetMesh* registerTetMesh(std::string name, const V& vertexPositions, const T& tetIndices,
