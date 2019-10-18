@@ -47,14 +47,13 @@ TetMesh* TetMesh::construct(const std::vector<Vector3>& positions,
         Tet t;
         t.verts = tets[n];
         // reorder vertices to be positively oriented
-        // the tetrahedron is positively oriented if triangle v0, v1, v2 has a normal vector pointing towards v3 
+        // the tetrahedron is positively oriented if it has positive volume
         Vector3 v0 = mesh->vertices[t.verts[0]].position;
         Vector3 v1 = mesh->vertices[t.verts[1]].position;
         Vector3 v2 = mesh->vertices[t.verts[2]].position;
         Vector3 v3 = mesh->vertices[t.verts[3]].position;
-        Vector3 normal = cross(v1 - v0, v2 - v0);
-        Vector3 toV3 = v3 - (v0 + v1 + v2) / 3;
-        if (dot(normal, toV3) < 0) {
+        double vol = dot(v3, cross(v1 - v0, v2 - v0));
+        if (vol < 0) {
             // Have to reverse orientation.
             // We do so by swapping v1 and v2
             size_t temp = t.verts[0];
