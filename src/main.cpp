@@ -61,6 +61,17 @@ int main(int argc, char **argv) {
       zData.emplace_back(v.z);
   }
 
+  std::vector<glm::vec3> faceNormals;
+  for (auto f : mesh->faceList()) {
+      Vector3 a = mesh->vertices[f[0]].position;
+      Vector3 b = mesh->vertices[f[1]].position;
+      Vector3 c = mesh->vertices[f[2]].position;
+
+      Vector3 N = cross(b-a, c-a);
+      N /= N.norm();
+      faceNormals.emplace_back(glm::vec3{N.x, N.y, N.z});
+  }
+
 
   // Initialize polyscope
   polyscope::init();
@@ -75,6 +86,7 @@ int main(int argc, char **argv) {
   psMesh->addVertexScalarQuantity("x", xData);
   psMesh->addVertexScalarQuantity("y", yData);
   psMesh->addVertexScalarQuantity("z", zData);
+  psMesh->addFaceVectorQuantity("normal", faceNormals);
 
 
   // Give control to the polyscope gui

@@ -9,6 +9,7 @@
 #include "polyscope/gl/shaders/wireframe_shaders.h"
 
 #include "tet_scalar_quantity.h"
+#include "tet_vector_quantity.h"
 
 #include "glm/glm.hpp"
 
@@ -19,6 +20,7 @@ namespace polyscope{
 
 // Forward declarations for quantities
 class TetVertexScalarQuantity;
+class TetVertexVectorQuantity;
 class TetFaceVectorQuantity;
 
 class TetMesh : public QuantityStructure<TetMesh> {
@@ -34,6 +36,7 @@ class TetMesh : public QuantityStructure<TetMesh> {
         std::vector<std::vector<size_t>> faces;
         std::vector<glm::vec3> faceNormals;
         std::vector<glm::vec3> tetCenters;
+        glm::vec3 faceCenter(size_t iF);
 
         std::vector<double> vertexVolumes;
         size_t nFaces();
@@ -88,7 +91,21 @@ class TetMesh : public QuantityStructure<TetMesh> {
             validateSize(data, vertices.size(), "vertex scalar quantity " + name);
             return addVertexScalarQuantityImpl(name, standardizeArray<double, T>(data), type);
         }
+        template <class T>
+        TetVertexVectorQuantity* addVertexVectorQuantity(std::string name, const T& vectors, VectorType vectorType = VectorType::STANDARD) {
+            validateSize(vectors, vertices.size(), "vertex vector quantity " + name);
+            return addVertexVectorQuantityImpl(name, standardizeVectorArray<glm::vec3, 3>(vectors), vectorType);
+        }
+        template <class T>
+        TetFaceVectorQuantity* addFaceVectorQuantity(std::string name, const T& vectors, VectorType vectorType = VectorType::STANDARD) {
+            validateSize(vectors, faces.size(), "face vector quantity " + name);
+            return addFaceVectorQuantityImpl(name, standardizeVectorArray<glm::vec3, 3>(vectors), vectorType);
+        }
+
+
         TetVertexScalarQuantity* addVertexScalarQuantityImpl(std::string name, const std::vector<double>& data, DataType type);
+        TetVertexVectorQuantity* addVertexVectorQuantityImpl(std::string name, const std::vector<glm::vec3>& vectors, VectorType vectorType);
+        TetFaceVectorQuantity* addFaceVectorQuantityImpl(std::string name, const std::vector<glm::vec3>& vectors, VectorType vectorType);
   
     protected:
         // = State

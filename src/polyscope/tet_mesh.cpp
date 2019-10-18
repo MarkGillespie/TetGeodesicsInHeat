@@ -54,8 +54,7 @@ void TetMesh::computeGeometryData() {
       glm::vec3 p1 = vertices[tets[iT][1]];
       glm::vec3 p2 = vertices[tets[iT][2]];
       glm::vec3 p3 = vertices[tets[iT][3]];
-      glm::vec3 center = p0 + p1 + p2 + p3;
-      center /= 4;
+      glm::vec3 center = (p0 + p1 + p2 + p3) / 4.f;
       tetCenters.emplace_back(center);
 
       double vol = glm::dot(p0 - p3, glm::cross(p1 - p3, p2 - p3)) / 6;
@@ -63,6 +62,13 @@ void TetMesh::computeGeometryData() {
           vertexVolumes[tets[iT][i]] += vol / 4;
       }
   }
+}
+
+
+glm::vec3 TetMesh::faceCenter(size_t iF) {
+    std::vector<size_t> f = faces[iF];
+    glm::vec3 center = vertices[f[0]] + vertices[f[1]] + vertices[f[2]];
+    return center / 3.f;
 }
 
 size_t TetMesh::nFaces() {
@@ -336,6 +342,25 @@ TetVertexScalarQuantity* TetMesh::addVertexScalarQuantityImpl(std::string name, 
                                                                       DataType type) {
   TetVertexScalarQuantity* q =
       new TetVertexScalarQuantity(name, data, *this, type);
+  addQuantity(q);
+  return q;
+}
+
+
+TetVertexVectorQuantity* TetMesh::addVertexVectorQuantityImpl(std::string name,
+                                                                      const std::vector<glm::vec3>& vectors,
+                                                                      VectorType vectorType) {
+  TetVertexVectorQuantity* q =
+      new TetVertexVectorQuantity(name, vectors, *this, vectorType);
+  addQuantity(q);
+  return q;
+}
+
+TetFaceVectorQuantity*
+TetMesh::addFaceVectorQuantityImpl(std::string name, const std::vector<glm::vec3>& vectors, VectorType vectorType) {
+
+  TetFaceVectorQuantity* q =
+      new TetFaceVectorQuantity(name, vectors, *this, vectorType);
   addQuantity(q);
   return q;
 }

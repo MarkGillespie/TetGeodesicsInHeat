@@ -146,11 +146,8 @@ void TetVertexScalarQuantity::createProgram() {
 void TetVertexScalarQuantity::draw() {
   if (!enabled) return;
 
-  if (program == nullptr) {
+  if (program == nullptr || parent.quantitiesMustRefillBuffers) {
     createProgram();
-  } else if (parent.quantitiesMustRefillBuffers) {
-    createProgram();
-  //    fillColorBuffers(*program);
   }
 
   // Set uniforms

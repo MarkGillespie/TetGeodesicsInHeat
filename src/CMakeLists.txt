@@ -11,6 +11,8 @@ add_library(
    polyscope/tet_mesh.h
    polyscope/tet_scalar_quantity.cpp
    polyscope/tet_scalar_quantity.h
+   polyscope/tet_vector_quantity.cpp
+   polyscope/tet_vector_quantity.h
 )
 target_link_libraries(polyscopeTetMesh polyscope)
 
