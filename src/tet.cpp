@@ -11,22 +11,25 @@ std::vector<glm::vec3> TetMesh::vertexPositions() {
     return vertexPositions;
 }
 
-std::vector<std::vector<size_t>> TetMesh::faces() {
+std::vector<std::vector<size_t>> TetMesh::faceList() {
     std::vector<std::vector<size_t>> faces;
     for (Tet t : tets) {
-        size_t a = t.verts[0];
-        size_t b = t.verts[1];
-        size_t c = t.verts[2];
-        size_t d = t.verts[3];
         faces.emplace_back(std::vector<size_t>{t.verts[0], t.verts[1], t.verts[2]});
         faces.emplace_back(std::vector<size_t>{t.verts[0], t.verts[2], t.verts[3]});
         faces.emplace_back(std::vector<size_t>{t.verts[0], t.verts[3], t.verts[1]});
         faces.emplace_back(std::vector<size_t>{t.verts[2], t.verts[3], t.verts[1]});
     }
 
-    Tet t = tets[0];
-    t.verts[0] = 4;
     return faces;
+}
+
+std::vector<std::vector<size_t>> TetMesh::tetList() {
+    std::vector<std::vector<size_t>> tetCombinatorics;
+    for (Tet t : tets) {
+        tetCombinatorics.emplace_back(t.verts);
+    }
+
+    return tetCombinatorics;
 }
 
 TetMesh* TetMesh::construct(const std::vector<Vector3>& positions,
@@ -43,15 +46,24 @@ TetMesh* TetMesh::construct(const std::vector<Vector3>& positions,
     for (size_t n = 0; n < tets.size(); ++n) {
         Tet t;
         t.verts = tets[n];
+        // reorder vertices to be positively oriented
+        // the tetrahedron is positively oriented if triangle v0, v1, v2 has a normal vector pointing towards v3 
+        Vector3 v0 = mesh->vertices[t.verts[0]].position;
+        Vector3 v1 = mesh->vertices[t.verts[1]].position;
+        Vector3 v2 = mesh->vertices[t.verts[2]].position;
+        Vector3 v3 = mesh->vertices[t.verts[3]].position;
+        Vector3 normal = cross(v1 - v0, v2 - v0);
+        Vector3 toV3 = v3 - (v0 + v1 + v2) / 3;
+        if (dot(normal, toV3) < 0) {
+            // Have to reverse orientation.
+            // We do so by swapping v1 and v2
+            size_t temp = t.verts[0];
+            t.verts[0] = t.verts[1];
+            t.verts[1] = temp;
+        }
+
         t.neigh = neigh[n];
         size_t tIdx = tets.size();
-
-        for (size_t i = 0; i < 4; ++i) {
-            assert(t.verts[i] < mesh->vertices.size());
-            for (size_t j = 0; j < i; ++j) {
-                assert(t.verts[i] != t.verts[j]);
-            }
-        }
 
         for (size_t i = 0; i < 4; ++i) {
             for (size_t j = i+1; j < 4; ++j) {

@@ -4,6 +4,7 @@
 
 #include "polyscope/polyscope.h"
 #include "polyscope/surface_mesh.h"
+#include "polyscope/tet_mesh.h"
 
 #include "tet.h"
 
@@ -51,41 +52,19 @@ int main(int argc, char **argv) {
 
 
   mesh = TetMesh::loadFromFile(filename);
-  cout << "nVertices: " << mesh->vertices.size() << endl;
-  cout << "nTets:   : " << mesh->tets.size() << endl;
-
   std::vector<glm::vec3> pos = mesh->vertexPositions();
 
-  std::vector<std::vector<size_t>> faces = mesh->faces();
-  cout << "nVertices: " << pos.size() << endl;
-  cout << "nFaces:   : " << faces.size() << endl;
 
-  for (size_t i = 0; i < 5; ++i) {
-      assert(i < pos.size());
-      cout << "Vertex: <" << pos[i].x << ", " << pos[i].y << " " << pos[i].z << ">" << endl;
-  }
-  cout << endl;
-  for (size_t j = 0; j < 5; ++j) {
-      cout << "FACE " << j << endl;
-      for (size_t i : faces[j]) {
-          cout << "\t" << i << ": " << std::flush;
-          assert(i < pos.size());
-          cout << "<" << pos[i].x << ", " << pos[i].y << " " << pos[i].z << ">, ";
-      }
-      cout << endl;
-  }
-
-
-// Initialize polyscope
+  // Initialize polyscope
   polyscope::init();
 
   // Set the callback function
   polyscope::state::userCallback = myCallback;
 
   // Register the mesh with polyscope
-  psMesh = polyscope::registerSurfaceMesh(
+  polyscope::registerTetMesh(
       polyscope::guessNiceNameFromPath(filename),
-      mesh->vertexPositions(), mesh->faces());
+      mesh->vertexPositions(), mesh->tetList());
 
   // Give control to the polyscope gui
   polyscope::show();

@@ -41,7 +41,8 @@ class TetMesh {
         TetMesh();
 
         std::vector<glm::vec3> vertexPositions();
-        std::vector<std::vector<size_t>> faces();
+        std::vector<std::vector<size_t>> faceList();
+        std::vector<std::vector<size_t>> tetList();
 
         static TetMesh* construct(const std::vector<Vector3>& positions,
                 const std::vector<std::vector<size_t>>& tets, const std::vector<std::vector<size_t>>& neigh);

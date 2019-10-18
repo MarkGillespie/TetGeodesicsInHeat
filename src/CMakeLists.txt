@@ -6,11 +6,18 @@ if (CMAKE_BINARY_DIR STREQUAL CMAKE_SOURCE_DIR)
 endif()
 
 add_library(
+   polyscopeTetMesh
+   polyscope/tet_mesh.cpp
+   polyscope/tet_mesh.h
+)
+target_link_libraries(polyscopeTetMesh polyscope)
+
+add_library(
     tetMesh
     tet.h
     tet.cpp
 )
-target_link_libraries(tetMesh geometry-central polyscope)
+target_link_libraries(tetMesh geometry-central polyscope polyscopeTetMesh)
 
 add_executable(
   run
