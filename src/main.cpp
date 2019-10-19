@@ -20,6 +20,8 @@ std::vector<Eigen::VectorXd> gEig(Eigen::SparseMatrix<double> A, Eigen::SparseMa
 
   std::vector<Eigen::VectorXd> evecs;
   evecs.emplace_back(Eigen::VectorXd::Ones(A.cols()));
+  evecs[0] /= sqrt(evecs[0].dot(B * evecs[0]));
+  // evecs[0] /= sqrt(evecs[0].dot(evecs[0]));
 
   for (size_t iter = 1; iter < n; ++iter) {
     Eigen::VectorXd v = Eigen::VectorXd::Random(A.cols());
@@ -28,14 +30,36 @@ std::vector<Eigen::VectorXd> gEig(Eigen::SparseMatrix<double> A, Eigen::SparseMa
     solver.compute(A);
 
     for (size_t i = 0; i < 100; ++i) {
-      v = B * v;
-      v = solver.solve(v);
+      // v = solver.solve(v);
+      v = solver.solve(B * v);
       for (size_t prev = 0; prev < iter; ++prev) {
+        assert(v.rows() == evecs[prev].rows());
+        // v = v - v.dot(evecs[prev]) * evecs[prev];
         v = v - v.dot(B * evecs[prev]) * evecs[prev];
       }
       v /= sqrt(v.dot(B * v));
+      // v /= sqrt(v.dot(v));
+    }
+
+    for (size_t prev = 0; prev < iter; ++prev) {
+      assert(abs(v.dot(B * evecs[prev])) < 1e-4);
+      // assert(abs(v.dot(evecs[prev])) < 1e-4);
     }
     evecs.emplace_back(v);
+
+  }
+
+  for (size_t i = 0; i < evecs.size(); ++i) {
+    Eigen::VectorXd v = evecs[i];
+    double lambda = v.dot(A*v) / v.dot(B * v);
+    double lambda1 = (A*v)[0] / (B*v)[0];
+    double lambda2 = (A*v)[1] / (B*v)[1];
+    assert(abs(lambda1-lambda2) < 1e-4);
+    // TODO: figure out what to assert here
+    assert(abs((lambda * B * v - A*v).norm()) < 1e-4);
+    // double lambda = v.dot(A*v) / v.dot(v);
+    // assert(abs((lambda * v - A*v).norm()) < 1e-4);
+    cout << "λ: " << lambda << endl;
   }
 
   return evecs;
@@ -99,10 +123,10 @@ int main(int argc, char **argv) {
       faceNormals.emplace_back(glm::vec3{N.x, N.y, N.z});
   }
 
-  // Eigen::SparseMatrix<double> L = mesh->weakLaplacian();
-  // Eigen::SparseMatrix<double> M = mesh->massMatrix();
+  Eigen::SparseMatrix<double> L = mesh->weakLaplacian();
+  Eigen::SparseMatrix<double> M = mesh->massMatrix();
 
-  // std::vector<Eigen::VectorXd> evecs = gEig(L, M, 5);
+  std::vector<Eigen::VectorXd> evecs = gEig(L, M, 5);
 
   // Initialize polyscope
   polyscope::init();
@@ -119,11 +143,12 @@ int main(int argc, char **argv) {
   psMesh->addVertexScalarQuantity("z", zData);
   psMesh->addFaceVectorQuantity("normal", faceNormals);
 
-  // for (size_t i = 0; i < evecs.size(); ++i) {
-  //   psMesh->addVertexScalarQuantity("evec " + std::to_string(i), evecs[i]);
-  // }
+  for (size_t i = 0; i < evecs.size(); ++i) {
+    psMesh->addVertexScalarQuantity("evec " + std::to_string(i), evecs[i]);
+  }
 
 
+  /*
   std::random_device rd;
   std::mt19937 e2(rd());
   std::uniform_real_distribution<> dist(-2, 2);
@@ -163,7 +188,7 @@ int main(int argc, char **argv) {
     moreFaceNormals.emplace_back(glm::vec3{N.x, N.y, N.z});
   }
   psSingleTetMesh->addFaceVectorQuantity("normal", moreFaceNormals);
-
+  */
 
   // Give control to the polyscope gui
   polyscope::show();

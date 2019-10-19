@@ -19,9 +19,8 @@ Eigen::SparseMatrix<double> TetMesh::massMatrix() {
 Eigen::SparseMatrix<double> TetMesh::weakLaplacian() {
   Eigen::SparseMatrix<double> cotanLaplacian(vertices.size(), vertices.size());
   std::vector<Eigen::Triplet<double>> tripletList;
-
-
   assert(partialEdgeCotanWeights.size() == edges.size());
+
   for (size_t iPE = 0; iPE < edges.size(); ++iPE) {
     PartialEdge pe = edges[iPE];
     size_t vSrc = pe.src;
@@ -29,10 +28,10 @@ Eigen::SparseMatrix<double> TetMesh::weakLaplacian() {
 
     double weight = partialEdgeCotanWeights[iPE];
 
-    tripletList.emplace_back(vSrc, vSrc, weight/2);
-    tripletList.emplace_back(vDst, vDst, weight/2);
-    tripletList.emplace_back(vSrc, vDst, -weight/2);
-    tripletList.emplace_back(vDst, vSrc, -weight/2);
+    tripletList.emplace_back(vSrc, vSrc, weight);
+    tripletList.emplace_back(vDst, vDst, weight);
+    tripletList.emplace_back(vSrc, vDst, -weight);
+    tripletList.emplace_back(vDst, vSrc, -weight);
   }
 
   cotanLaplacian.setFromTriplets(tripletList.begin(), tripletList.end());
@@ -161,19 +160,20 @@ std::vector<double> TetMesh::cotanWeights(Tet t) {
   double u3 = scaleFactors[t.verts[3]];
 
   double e01 = norm(p0 - p1) * exp(0.5 * (u0 + u1));
-  double e23 = norm(p2 - p3) * exp(0.5 * (u2 + u3));
   double e02 = norm(p0 - p2) * exp(0.5 * (u0 + u2));
-  double e13 = norm(p1 - p3) * exp(0.5 * (u1 + u3));
-  double e12 = norm(p1 - p2) * exp(0.5 * (u1 + u2));
   double e03 = norm(p0 - p3) * exp(0.5 * (u0 + u3));
+  double e12 = norm(p1 - p2) * exp(0.5 * (u1 + u2));
+  double e13 = norm(p1 - p3) * exp(0.5 * (u1 + u3));
+  double e23 = norm(p2 - p3) * exp(0.5 * (u2 + u3));
 
   std::vector<double> weights;
-  weights.emplace_back(e01 * cot(angles[0]) / 6);
-  weights.emplace_back(e02 * cot(angles[1]) / 6);
-  weights.emplace_back(e03 * cot(angles[2]) / 6);
-  weights.emplace_back(e12 * cot(angles[3]) / 6);
-  weights.emplace_back(e13 * cot(angles[4]) / 6);
+  // Weird order since the cotan weight for edge e_ij comes from the _opposite_ edge e_kl
   weights.emplace_back(e23 * cot(angles[5]) / 6);
+  weights.emplace_back(e13 * cot(angles[4]) / 6);
+  weights.emplace_back(e12 * cot(angles[3]) / 6);
+  weights.emplace_back(e03 * cot(angles[2]) / 6);
+  weights.emplace_back(e02 * cot(angles[1]) / 6);
+  weights.emplace_back(e01 * cot(angles[0]) / 6);
   return weights;
 }
 
