@@ -5,6 +5,8 @@
 #include <sstream>
 #include <glm/glm.hpp>
 
+#include <Eigen/SparseCore>
+
 using std::string;
 using std::ifstream;
 using std::istringstream;
@@ -47,13 +49,12 @@ class TetMesh {
         std::vector<PartialEdge> edges;
         std::vector<Tet> tets;
 
-        std::vector<double> tetVolumes;
-        std::vector<double> vertexDualVolumes;
-        std::vector<double> partialEdgeCotanWeights;
-
         std::vector<double> scaleFactors;
 
         double tetVolume(Tet t);
+        std::vector<double> dihedralAngles(Tet t);
+        std::vector<double> cotanWeights(Tet t);
+        /* std::vector<double> dihedralAngles(Tet t); */
 
         TetMesh();
 
@@ -65,6 +66,13 @@ class TetMesh {
                 const std::vector<std::vector<size_t>>& tets, const std::vector<std::vector<size_t>>& neigh);
 
         void recomputeGeometry();
+
+        std::vector<double> tetVolumes;
+        std::vector<double> vertexDualVolumes;
+        std::vector<double> partialEdgeCotanWeights;
+
+        Eigen::SparseMatrix<double> weakLaplacian();
+        Eigen::SparseMatrix<double> massMatrix();
 
         // Assumes that *.node file is at same place as *.ele file,
         // but just ends in node
