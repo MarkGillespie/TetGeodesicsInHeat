@@ -48,7 +48,6 @@ class TetMesh : public QuantityStructure<TetMesh> {
         void drawPick();
 
         // == Build the ImGUI ui elements
-        void buildUI();
         void buildCustomUI();      // overridden by childen to add custom UI data
         void buildCustomOptionsUI();   // overridden by childen to add to the options menu
         void buildPickUI(size_t localPickID); // Draw pick UI elements when index localPickID is selected
@@ -69,9 +68,11 @@ class TetMesh : public QuantityStructure<TetMesh> {
         // = Drawing related things
         bool quantitiesMustRefillBuffers = false;
         std::unique_ptr<gl::GLProgram> program;
+        std::unique_ptr<gl::GLProgram> pickProgram;
         std::unique_ptr<gl::GLProgram> wireframeProgram;
         void prepare();
         void prepareWireframe();
+        void preparePick();
         void refillBuffers();
         void fillGeometryBuffers(gl::GLProgram& p);
         void fillGeometryBuffersWireframe(gl::GLProgram& p);
@@ -106,10 +107,6 @@ class TetMesh : public QuantityStructure<TetMesh> {
         TetVertexScalarQuantity* addVertexScalarQuantityImpl(std::string name, const std::vector<double>& data, DataType type);
         TetVertexVectorQuantity* addVertexVectorQuantityImpl(std::string name, const std::vector<glm::vec3>& vectors, VectorType vectorType);
         TetFaceVectorQuantity* addFaceVectorQuantityImpl(std::string name, const std::vector<glm::vec3>& vectors, VectorType vectorType);
-  
-    protected:
-        // = State
-        bool enabled = true;
 };
 
 // Register functions

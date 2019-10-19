@@ -121,6 +121,7 @@ void TetMesh::draw() {
         glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
     }
 }
+
 void TetMesh::drawPick() {
 }
 
@@ -142,6 +143,9 @@ void TetMesh::prepareWireframe() {
   fillGeometryBuffersWireframe(*wireframeProgram);
 
   setMaterialForProgram(*wireframeProgram, "wax");
+}
+
+void TetMesh::preparePick() {
 }
 
 
@@ -258,10 +262,6 @@ void TetMesh::fillGeometryBuffersWireframe(gl::GLProgram& p) {
 }
 
 // == Build the ImGUI ui elements
-void TetMesh::buildUI() {
-}
-
-
 void TetMesh::refillBuffers() {
     fillGeometryBuffers(*program);
 
@@ -289,7 +289,7 @@ void TetMesh::buildCustomUI(){
   { // Edge width
     ImGui::PushItemWidth(100);
     ImGui::SliderFloat("Edge Width", &edgeWidth, 0.0, 1., "%.5f", 2.);
-    if(ImGui::SliderFloat("Plane Distance", &sliceDist, -1., 1., "%.5f", 2.)) {
+    if(ImGui::SliderFloat("Plane Distance", &sliceDist, -10., 10., "%.5f", 2.)) {
         refillBuffers();
     }
     if(ImGui::SliderFloat("Plane theta", &sliceTheta, 0., 2. * PI, "%.5f", 2.)) {

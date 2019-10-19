@@ -282,8 +282,8 @@ TetMesh* TetMesh::construct(const std::vector<Vector3>& positions,
         Vector3 v1 = mesh->vertices[t.verts[1]].position;
         Vector3 v2 = mesh->vertices[t.verts[2]].position;
         Vector3 v3 = mesh->vertices[t.verts[3]].position;
-        double vol = dot(v3, cross(v1 - v0, v2 - v0));
-        if (vol < 0) {
+        double vol = dot(v3 - v0, cross(v1 - v0, v2 - v0));
+        if (vol > 0) {
             // Have to reverse orientation.
             // We do so by swapping v1 and v2
             size_t temp = t.verts[0];

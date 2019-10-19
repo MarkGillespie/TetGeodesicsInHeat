@@ -111,13 +111,13 @@ int main(int argc, char **argv) {
   polyscope::state::userCallback = myCallback;
 
   // Register the mesh with polyscope
-  // psMesh = polyscope::registerTetMesh(
-  //     polyscope::guessNiceNameFromPath(filename),
-  //     mesh->vertexPositions(), mesh->tetList());
-  // psMesh->addVertexScalarQuantity("x", xData);
-  // psMesh->addVertexScalarQuantity("y", yData);
-  // psMesh->addVertexScalarQuantity("z", zData);
-  // psMesh->addFaceVectorQuantity("normal", faceNormals);
+  psMesh = polyscope::registerTetMesh(
+      polyscope::guessNiceNameFromPath(filename),
+      mesh->vertexPositions(), mesh->tetList());
+  psMesh->addVertexScalarQuantity("x", xData);
+  psMesh->addVertexScalarQuantity("y", yData);
+  psMesh->addVertexScalarQuantity("z", zData);
+  psMesh->addFaceVectorQuantity("normal", faceNormals);
 
   // for (size_t i = 0; i < evecs.size(); ++i) {
   //   psMesh->addVertexScalarQuantity("evec " + std::to_string(i), evecs[i]);
@@ -130,13 +130,20 @@ int main(int argc, char **argv) {
 
 
   std::vector<Vector3> positions;
-  positions.emplace_back(Vector3{0, 0, 0});
   positions.emplace_back(Vector3{dist(e2), dist(e2), dist(e2)});
   positions.emplace_back(Vector3{dist(e2), dist(e2), dist(e2)});
   positions.emplace_back(Vector3{dist(e2), dist(e2), dist(e2)});
+  positions.emplace_back(Vector3{dist(e2), dist(e2), dist(e2)});
+
+  for (size_t i = 0; i < 4; ++i) {
+    positions.emplace_back(positions[i] + Vector3{4, 0, 0});
+  }
+
   std::vector<std::vector<size_t>> tets;
   tets.emplace_back(std::vector<size_t>{0, 1, 2, 3});
+  tets.emplace_back(std::vector<size_t>{5, 4, 6, 7});
   std::vector<std::vector<size_t>> neigh;
+  neigh.emplace_back(std::vector<size_t>{0, 0, 0, 0});
   neigh.emplace_back(std::vector<size_t>{0, 0, 0, 0});
 
   TetMesh* singleTetMesh = TetMesh::construct(positions, tets, neigh);
