@@ -125,25 +125,6 @@ std::vector<double> TetMesh::dihedralAngles(Tet t) {
   double d023 = -(e02 + e03 + e23) * (e02 + e03 - e23) * (e23 + e02 - e03) * (e03 + e23 - e02);
   double d123 = -(e13 + e23 + e12) * (e13 + e23 - e12) * (e12 + e13 - e23) * (e23 + e12 - e13);
 
-  assert(abs(d012 + 16 * pow(area(e01, e02, e12), 2)) < 1e-4);
-  assert(abs(d013 + 16 * pow(area(e01, e03, e13), 2)) < 1e-4);
-  assert(abs(d023 + 16 * pow(area(e02, e03, e23), 2)) < 1e-4);
-  assert(abs(d123 + 16 * pow(area(e12, e13, e23), 2)) < 1e-4);
-
-  double d = 288 * pow(tetVolume(t), 2);
-  double other_d01sq = abs(d012 * d013 - 2 * e01sq * d);
-  double other_d02sq = abs(d012 * d023 - 2 * e02sq * d);
-  double other_d03sq = abs(d013 * d023 - 2 * e03sq * d);
-  double other_d12sq = abs(d012 * d123 - 2 * e12sq * d);
-  double other_d13sq = abs(d013 * d123 - 2 * e13sq * d);
-  double other_d23sq = abs(d023 * d123 - 2 * e23sq * d);
-  // cout << "d01sq: " << d01 * d01 << "\tother d01sq: " << other_d01sq << endl;
-  // cout << "d02sq: " << d02 * d02 << "\tother d02sq: " << other_d02sq << endl;
-  // cout << "d03sq: " << d03 * d03 << "\tother d03sq: " << other_d03sq << endl;
-  // cout << "d12sq: " << d12 * d12 << "\tother d12sq: " << other_d12sq << endl;
-  // cout << "d13sq: " << d13 * d13 << "\tother d13sq: " << other_d13sq << endl;
-  // cout << "d23sq: " << d23 * d23 << "\tother d23sq: " << other_d23sq << endl;
-
   double cos01 = d01 / sqrt(d012 * d013);
   double cos02 = d02 / sqrt(d012 * d023);
   double cos03 = d03 / sqrt(d013 * d023);
@@ -151,26 +132,13 @@ std::vector<double> TetMesh::dihedralAngles(Tet t) {
   double cos13 = d13 / sqrt(d013 * d123);
   double cos23 = d23 / sqrt(d023 * d123);
 
-  double sin01 = e01 * sqrt(2 * d / (d012 * d013));
-  double sin02 = e02 * sqrt(2 * d / (d012 * d023));
-  double sin03 = e03 * sqrt(2 * d / (d013 * d023));
-  double sin12 = e12 * sqrt(2 * d / (d012 * d123));
-  double sin13 = e13 * sqrt(2 * d / (d013 * d123));
-  double sin23 = e23 * sqrt(2 * d / (d023 * d123));
-
   std::vector<double> angles;
-  angles.emplace_back(asin(fmin(sin01, 1)));
-  angles.emplace_back(asin(fmin(sin02, 1)));
-  angles.emplace_back(asin(fmin(sin03, 1)));
-  angles.emplace_back(asin(fmin(sin12, 1)));
-  angles.emplace_back(asin(fmin(sin13, 1)));
-  angles.emplace_back(asin(fmin(sin23, 1)));
-  // angles.emplace_back(acos(cos01));
-  // angles.emplace_back(acos(cos02));
-  // angles.emplace_back(acos(cos03));
-  // angles.emplace_back(acos(cos12));
-  // angles.emplace_back(acos(cos13));
-  // angles.emplace_back(acos(cos23));
+  angles.emplace_back(acos(cos01));
+  angles.emplace_back(acos(cos02));
+  angles.emplace_back(acos(cos03));
+  angles.emplace_back(acos(cos12));
+  angles.emplace_back(acos(cos13));
+  angles.emplace_back(acos(cos23));
 
   return angles;
 }

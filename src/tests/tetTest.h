@@ -79,16 +79,4 @@ TEST_F(TetTest, dihedralAngleFormulaTest) {
   EXPECT_FLOAT_EQ(alpha12, angles[3]);
   EXPECT_FLOAT_EQ(alpha13, angles[4]);
   EXPECT_FLOAT_EQ(alpha23, angles[5]);
-
-  cout << "V12" << v2 - v1 << endl;
-  cout << "V13" << v3 - v1 << endl;
-  cout << "V23" << v3 - v2 << endl;
-
-  cout << endl;
-  cout << "angles[0]: " << angles[0] << endl;
-  cout << "angles[1]: " << angles[1] << endl;
-  cout << "angles[2]: " << angles[2] << endl;
-  cout << "angles[3]: " << angles[3] << endl;
-  cout << "angles[4]: " << angles[4] << endl;
-  cout << "angles[5]: " << angles[5] << endl;
 }
