@@ -1,6 +1,78 @@
 #include "tet.h"
+namespace CompArch {
+TetMesh::TetMesh(){
+  recomputeGeometry();
+}
 
-TetMesh::TetMesh(){}
+// https://people.eecs.berkeley.edu/~wkahan/VtetLang.pdf
+double TetMesh::tetVolume(Tet t) {
+  Vector3 p0 = vertices[t.verts[0]].position;
+  Vector3 p1 = vertices[t.verts[1]].position;
+  Vector3 p2 = vertices[t.verts[2]].position;
+  Vector3 p3 = vertices[t.verts[3]].position;
+
+  double u0 = scaleFactors[t.verts[0]];
+  double u1 = scaleFactors[t.verts[1]];
+  double u2 = scaleFactors[t.verts[2]];
+  double u3 = scaleFactors[t.verts[3]];
+
+  double U = norm(p0 - p1) * exp(0.5 * (u0 + u1));
+  double u = norm(p2 - p3) * exp(0.5 * (u2 + u3));
+  double V = norm(p0 - p2) * exp(0.5 * (u0 + u2));
+  double v = norm(p1 - p3) * exp(0.5 * (u1 + u3));
+  double W = norm(p1 - p2) * exp(0.5 * (u1 + u2));
+  double w = norm(p0 - p3) * exp(0.5 * (u0 + u3));
+
+  double XU = w - U + v;
+  double Xv = U - w + w;
+  double Xw = v - w + U;
+  double YV = u - V + w;
+  double Yw = V - w + u;
+  double Yu = w - u + V;
+  double ZW = v - W + u;
+  double Zu = W - u + v;
+  double Zv = u - v + W;
+
+  double X0 = XU + Xv + Xw;
+  double Y0 = YV + Yw + Yu;
+  double Z0 = ZW + Zu + Zv;
+
+  double X = XU * X0;
+  double x = Xv * Xw;
+  double Y = YV * Y0;
+  double y = Yw * Yu;
+  double Z = ZW * Z0;
+  double z = Zu * Zv;
+
+  assert(abs(u - sqrt((Y + y) * (Z + z) / (X + x))/2));
+  assert(abs(U - sqrt(X * (Y + y - Z - z)*(Y + y - Z - z) + x * (Y + y + Z + z) * (Y + y + Z + z) / ((Y + y) * (Z + z)))/2));
+
+  double xi = sqrt(x * Y * Z);
+  double eta = sqrt(y * Z * X);
+  double zeta = sqrt(z * X * Y);
+  double lambda = sqrt(x * y * z);
+
+  cout << "xi: " << xi << endl;
+  cout << "eta: " << eta << endl;
+  cout << "zeta: " << zeta << endl;
+  cout << "lambda: " << lambda << endl;
+
+  return sqrt((xi + eta + zeta - lambda) * (lambda + xi + eta - zeta) * (eta + zeta + lambda - xi) * (zeta + lambda + xi - eta)) / (192 * u * v * w);
+}
+
+void TetMesh::recomputeGeometry() {
+
+  // Loop over tets to compute cotan weights and vertex areas
+  vertexDualVolumes = std::vector<double>(vertices.size(), 0.0);
+  for (size_t iT = 0; iT < tets.size(); ++iT) {
+
+    double vol = tetVolume(tets[iT]);
+    tetVolumes[iT] = vol;
+    for (size_t i = 0; i < 4; ++i) {
+      vertexDualVolumes[tets[iT].verts[i]] += vol / 4;
+    }
+  }
+}
 
 std::vector<glm::vec3> TetMesh::vertexPositions() {
     std::vector<glm::vec3> vertexPositions;
@@ -17,7 +89,7 @@ std::vector<std::vector<size_t>> TetMesh::faceList() {
         faces.emplace_back(std::vector<size_t>{t.verts[0], t.verts[1], t.verts[2]});
         faces.emplace_back(std::vector<size_t>{t.verts[0], t.verts[2], t.verts[3]});
         faces.emplace_back(std::vector<size_t>{t.verts[0], t.verts[3], t.verts[1]});
-        faces.emplace_back(std::vector<size_t>{t.verts[2], t.verts[3], t.verts[1]});
+        faces.emplace_back(std::vector<size_t>{t.verts[2], t.verts[1], t.verts[3]});
     }
 
     return faces;
@@ -42,6 +114,7 @@ TetMesh* TetMesh::construct(const std::vector<Vector3>& positions,
         v.position = p;
         mesh->vertices.emplace_back(v);
     }
+    mesh->scaleFactors = std::vector<double>(mesh->vertices.size(), 0.0);
 
     for (size_t n = 0; n < tets.size(); ++n) {
         Tet t;
@@ -63,7 +136,6 @@ TetMesh* TetMesh::construct(const std::vector<Vector3>& positions,
 
         // TODO: Order the neighbors so that neigh[i] is opposite verts[i]
         t.neigh = neigh[n];
-
 
         // Add in PartialEdges
         size_t tIdx = tets.size();
@@ -164,3 +236,4 @@ TetMesh* TetMesh::loadFromFile(string elePath) {
 
     return TetMesh::construct(verts, tets, neighbors);
 }
+} // CompArch

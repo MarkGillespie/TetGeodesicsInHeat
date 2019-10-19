@@ -11,8 +11,7 @@
 #include "args/args.hxx"
 #include "imgui.h"
 
-using namespace geometrycentral;
-using namespace geometrycentral::surface;
+using namespace CompArch;
 
 // == Geometry-central data
 TetMesh* mesh;

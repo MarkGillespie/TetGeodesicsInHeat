@@ -13,7 +13,7 @@ TetMesh::TetMesh(std::string name_, std::vector<glm::vec3> vertices_, std::vecto
         faces.emplace_back(std::vector<size_t>{t[0], t[1], t[2]});
         faces.emplace_back(std::vector<size_t>{t[0], t[2], t[3]});
         faces.emplace_back(std::vector<size_t>{t[0], t[3], t[1]});
-        faces.emplace_back(std::vector<size_t>{t[2], t[3], t[1]});
+        faces.emplace_back(std::vector<size_t>{t[2], t[1], t[3]});
     }
     computeGeometryData();
 
