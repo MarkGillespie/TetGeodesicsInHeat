@@ -16,10 +16,11 @@ class TetTest : public ::testing::Test {
 
 
     std::vector<Vector3> positions;
-    positions.emplace_back(Vector3{0, 0, 0});
+    /* positions.emplace_back(Vector3{0, 0, 0}); */
     /* positions.emplace_back(Vector3{1, 0, 0}); */
     /* positions.emplace_back(Vector3{0, 1, 0}); */
     /* positions.emplace_back(Vector3{0, 0, 1}); */
+    positions.emplace_back(Vector3{dist(e2), dist(e2), dist(e2)});
     positions.emplace_back(Vector3{dist(e2), dist(e2), dist(e2)});
     positions.emplace_back(Vector3{dist(e2), dist(e2), dist(e2)});
     positions.emplace_back(Vector3{dist(e2), dist(e2), dist(e2)});
@@ -46,9 +47,9 @@ TEST_F(TetTest, volumeFormulaTest) {
   Vector3 v1 = tetMesh->vertices[t.verts[1]].position;
   Vector3 v2 = tetMesh->vertices[t.verts[2]].position;
   Vector3 v3 = tetMesh->vertices[t.verts[3]].position;
-  double simpleVol = dot(v3, cross(v1 - v0, v2 - v0)) / 6;
+  double simpleVol = dot(v3 - v0, cross(v1 - v0, v2 - v0)) / 6;
 
-  EXPECT_FLOAT_EQ(vol, simpleVol);
+  EXPECT_FLOAT_EQ(vol, abs(simpleVol));
 }
 
 TEST_F(TetTest, dihedralAngleFormulaTest) {
