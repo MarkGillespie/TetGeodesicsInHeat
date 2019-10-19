@@ -25,6 +25,12 @@ class TetTest : public ::testing::Test {
 
 CompArch::TetMesh* TetTest::tetMesh = nullptr;
 
+TEST_F(TetTest, simpleVolumeFormulaTest) {
+  /* double vol = CompArch::TetMesh::intrinsicVolume(3, 1000, 4, 1000, 5, 1000); */
+
+  /* EXPECT_FLOAT_EQ(vol, 1999.9947); */
+}
+
 TEST_F(TetTest, volumeFormulaTest) {
   CompArch::Tet t = tetMesh->tets[0];
   double vol = tetMesh->tetVolume(t);
@@ -33,7 +39,7 @@ TEST_F(TetTest, volumeFormulaTest) {
   Vector3 v1 = tetMesh->vertices[t.verts[1]].position;
   Vector3 v2 = tetMesh->vertices[t.verts[2]].position;
   Vector3 v3 = tetMesh->vertices[t.verts[3]].position;
-  double simpleVol = dot(v3, cross(v1 - v0, v2 - v0));
+  double simpleVol = dot(v3, cross(v1 - v0, v2 - v0)) / 6;
 
   EXPECT_FLOAT_EQ(vol, simpleVol);
 }

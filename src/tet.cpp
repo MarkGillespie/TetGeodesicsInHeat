@@ -5,6 +5,26 @@ TetMesh::TetMesh(){
 }
 
 // https://people.eecs.berkeley.edu/~wkahan/VtetLang.pdf
+// https://www.geeksforgeeks.org/program-to-find-the-volume-of-an-irregular-tetrahedron/
+double TetMesh::intrinsicVolume(double U, double u, double V, double v, double W, double w) {
+    // Steps to calculate volume of a
+    // Tetrahedron using formula
+    double uPow = pow(u, 2);
+    double vPow = pow(v, 2);
+    double wPow = pow(w, 2);
+    double UPow = pow(U, 2);
+    double VPow = pow(V, 2);
+    double WPow = pow(W, 2);
+
+    double a = 4 * uPow * vPow * wPow
+      - uPow * pow((vPow + wPow - UPow), 2)
+      - vPow * pow((wPow + uPow - VPow), 2)
+      - wPow * pow((uPow + vPow - WPow), 2)
+      + (vPow + wPow - UPow) * (wPow + uPow - VPow)
+      * (uPow + vPow - WPow);
+    return sqrt(a) / 12;
+}
+
 double TetMesh::tetVolume(Tet t) {
   Vector3 p0 = vertices[t.verts[0]].position;
   Vector3 p1 = vertices[t.verts[1]].position;
@@ -23,41 +43,7 @@ double TetMesh::tetVolume(Tet t) {
   double W = norm(p1 - p2) * exp(0.5 * (u1 + u2));
   double w = norm(p0 - p3) * exp(0.5 * (u0 + u3));
 
-  double XU = w - U + v;
-  double Xv = U - w + w;
-  double Xw = v - w + U;
-  double YV = u - V + w;
-  double Yw = V - w + u;
-  double Yu = w - u + V;
-  double ZW = v - W + u;
-  double Zu = W - u + v;
-  double Zv = u - v + W;
-
-  double X0 = XU + Xv + Xw;
-  double Y0 = YV + Yw + Yu;
-  double Z0 = ZW + Zu + Zv;
-
-  double X = XU * X0;
-  double x = Xv * Xw;
-  double Y = YV * Y0;
-  double y = Yw * Yu;
-  double Z = ZW * Z0;
-  double z = Zu * Zv;
-
-  assert(abs(u - sqrt((Y + y) * (Z + z) / (X + x))/2));
-  assert(abs(U - sqrt(X * (Y + y - Z - z)*(Y + y - Z - z) + x * (Y + y + Z + z) * (Y + y + Z + z) / ((Y + y) * (Z + z)))/2));
-
-  double xi = sqrt(x * Y * Z);
-  double eta = sqrt(y * Z * X);
-  double zeta = sqrt(z * X * Y);
-  double lambda = sqrt(x * y * z);
-
-  cout << "xi: " << xi << endl;
-  cout << "eta: " << eta << endl;
-  cout << "zeta: " << zeta << endl;
-  cout << "lambda: " << lambda << endl;
-
-  return sqrt((xi + eta + zeta - lambda) * (lambda + xi + eta - zeta) * (eta + zeta + lambda - xi) * (zeta + lambda + xi - eta)) / (192 * u * v * w);
+  return intrinsicVolume(U, u, V, v, W, w);
 }
 
 void TetMesh::recomputeGeometry() {

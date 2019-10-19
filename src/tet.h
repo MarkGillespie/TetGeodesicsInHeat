@@ -69,5 +69,7 @@ class TetMesh {
         // Assumes that *.node file is at same place as *.ele file,
         // but just ends in node
         static TetMesh* loadFromFile(string elePath);
+        static double intrinsicVolume(double U, double u, double V, double v, double W, double w);
 };
 } // CompArch
+
