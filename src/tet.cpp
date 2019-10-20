@@ -39,34 +39,34 @@ Eigen::SparseMatrix<double> TetMesh::weakLaplacian() {
 }
 
 
-// return the gradient of function u linearly interpolated over a tetrahedron with
-// vertices p[0], ... , p[3]
+// return the gradient of function u linearly interpolated over a tetrahedron
+// with vertices p[0], ... , p[3]
 Vector3 grad(std::vector<double> u, std::vector<Vector3> p) {
-  Vector3 gradU;
-  double vol = dot(p[3] - p[0], cross(p[1] - p[0], p[2] - p[0]));
+    Vector3 gradU;
+    double vol = dot(p[3] - p[0], cross(p[1] - p[0], p[2] - p[0]));
 
-  // Hand code cases because of orientation problems
-  // Face 012
-  Vector3 areaNormal = -0.5 * cross(p[1] - p[0], p[2] - p[0]);
-  gradU += u[3] * areaNormal / (3 * vol);
-  // Face 023
-  areaNormal = -0.5 * cross(p[2] - p[0], p[3] - p[0]);
-  gradU += u[1] * areaNormal / (3 * vol);
-  // Face 031
-  areaNormal = -0.5 * cross(p[3] - p[0], p[1] - p[0]);
-  gradU += u[2] * areaNormal / (3 * vol);
-  // Face 213
-  areaNormal = -0.5 * cross(p[1] - p[2], p[3] - p[2]);
-  gradU += u[0] * areaNormal / (3 * vol);
+    // Hand code cases because of orientation problems
+    // Face 012
+    Vector3 areaNormal = -0.5 * cross(p[1] - p[0], p[2] - p[0]);
+    gradU += u[3] * areaNormal / (3 * vol);
+    // Face 023
+    areaNormal = -0.5 * cross(p[2] - p[0], p[3] - p[0]);
+    gradU += u[1] * areaNormal / (3 * vol);
+    // Face 031
+    areaNormal = -0.5 * cross(p[3] - p[0], p[1] - p[0]);
+    gradU += u[2] * areaNormal / (3 * vol);
+    // Face 213
+    areaNormal = -0.5 * cross(p[1] - p[2], p[3] - p[2]);
+    gradU += u[0] * areaNormal / (3 * vol);
 
-  return gradU;
+    return gradU;
 }
 
 // Returns the angle of the corner opposite edge a in a triangle
 // with edge lengths a, b, c
 double cornerAngle(double a, double b, double c) {
-  double cosAngle = (b * b + c * c - a * a) / (2 * b * c);
-  return acos(cosAngle);
+    double cosAngle = (b * b + c * c - a * a) / (2 * b * c);
+    return acos(cosAngle);
 }
 
 // We will put vertex 0 at the origin and vertex 1 along the x axis
@@ -74,41 +74,42 @@ double cornerAngle(double a, double b, double c) {
 // in space
 // List returned in vertex order
 std::vector<Vector3> TetMesh::layOutIntrinsicTet(Tet t) {
-  std::vector<Vector3> positions;
+    std::vector<Vector3> positions;
 
-  Vector3 p0 = vertices[t.verts[0]].position;
-  Vector3 p1 = vertices[t.verts[1]].position;
-  Vector3 p2 = vertices[t.verts[2]].position;
-  Vector3 p3 = vertices[t.verts[3]].position;
+    Vector3 p0 = vertices[t.verts[0]].position;
+    Vector3 p1 = vertices[t.verts[1]].position;
+    Vector3 p2 = vertices[t.verts[2]].position;
+    Vector3 p3 = vertices[t.verts[3]].position;
 
-  double u0 = scaleFactors[t.verts[0]];
-  double u1 = scaleFactors[t.verts[1]];
-  double u2 = scaleFactors[t.verts[2]];
-  double u3 = scaleFactors[t.verts[3]];
+    double u0 = scaleFactors[t.verts[0]];
+    double u1 = scaleFactors[t.verts[1]];
+    double u2 = scaleFactors[t.verts[2]];
+    double u3 = scaleFactors[t.verts[3]];
 
-  double e01 = norm(p0 - p1) * exp(0.5 * (u0 + u1));
-  double e02 = norm(p0 - p2) * exp(0.5 * (u0 + u2));
-  double e03 = norm(p0 - p3) * exp(0.5 * (u0 + u3));
-  double e12 = norm(p1 - p2) * exp(0.5 * (u1 + u2));
-  double e13 = norm(p1 - p3) * exp(0.5 * (u1 + u3));
-  double e23 = norm(p2 - p3) * exp(0.5 * (u2 + u3));
+    double e01 = norm(p0 - p1) * exp(0.5 * (u0 + u1));
+    double e02 = norm(p0 - p2) * exp(0.5 * (u0 + u2));
+    double e03 = norm(p0 - p3) * exp(0.5 * (u0 + u3));
+    double e12 = norm(p1 - p2) * exp(0.5 * (u1 + u2));
+    double e13 = norm(p1 - p3) * exp(0.5 * (u1 + u3));
+    double e23 = norm(p2 - p3) * exp(0.5 * (u2 + u3));
 
-  positions.emplace_back(Vector3{0, 0, 0});
-  positions.emplace_back(Vector3{e01, 0, 0});
-  double angle = cornerAngle(e12, e01, e02);
-  positions.emplace_back(e02 * Vector3{cos(angle), -sin(angle), 0});
+    positions.emplace_back(Vector3{0, 0, 0});
+    positions.emplace_back(Vector3{e01, 0, 0});
+    double angle = cornerAngle(e12, e01, e02);
+    positions.emplace_back(e02 * Vector3{cos(angle), -sin(angle), 0});
 
-  // To place vertex 3, we find the angle at the corner of v0 in face v0-v1-v3
-  // Together with the dihedral angle between the 013 face and the 012 face (i.e.
-  // the dihedral angle along edge e01), this tells us where v3 should go
-  angle = cornerAngle(e13, e01, e03);
-  double dihedralAngle = dihedralAngles(t)[0];
-  positions.emplace_back(e03 * Vector3{cos(angle),
-                                      -cos(dihedralAngle) * sin(angle),
-                                       sin(dihedralAngle) * sin(angle)});
+    // To place vertex 3, we find the angle at the corner of v0 in face v0-v1-v3
+    // Together with the dihedral angle between the 013 face and the 012 face
+    // (i.e. the dihedral angle along edge e01), this tells us where v3 should
+    // go
+    angle                = cornerAngle(e13, e01, e03);
+    double dihedralAngle = dihedralAngles(t)[0];
+    positions.emplace_back(e03 * Vector3{cos(angle),
+                                         -cos(dihedralAngle) * sin(angle),
+                                         sin(dihedralAngle) * sin(angle)});
 
 
-  return positions;
+    return positions;
 }
 
 // https://people.eecs.berkeley.edu/~wkahan/VtetLang.pdf

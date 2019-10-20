@@ -80,12 +80,12 @@ class TetMesh {
     // Assumes that *.node file is at same place as *.ele file,
     // but just ends in node
     static TetMesh* loadFromFile(string elePath);
-    static double intrinsicVolume(double U, double u, double V, double v, double W, double w);
+    static double intrinsicVolume(double U, double u, double V, double v,
+                                  double W, double w);
 };
 
-// return the gradient of function u linearly interpolated over a tetrahedron with
-// vertices p[0], ... , p[3]
+// return the gradient of function u linearly interpolated over a tetrahedron
+// with vertices p[0], ... , p[3]
 Vector3 grad(std::vector<double> u, std::vector<Vector3> p);
 
-} // CompArch
-
+} // namespace CompArch
