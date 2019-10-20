@@ -4,6 +4,7 @@
 #include "polyscope/gl/materials/materials.h"
 #include "polyscope/gl/shaders/surface_shaders.h"
 #include "polyscope/gl/shaders/wireframe_shaders.h"
+#include "polyscope/pick.h"
 #include "polyscope/polyscope.h"
 #include "polyscope/structure.h"
 #include "polyscope/surface_mesh.h"
@@ -23,9 +24,15 @@ class TetVertexScalarQuantity;
 class TetVertexVectorQuantity;
 class TetFaceVectorQuantity;
 
+template <> // Specialize the quantity type
+struct QuantityTypeHelper<TetMesh> {
+    typedef TetMeshQuantity type;
+};
+
+
 class TetMesh : public QuantityStructure<TetMesh> {
   public:
-    typedef Quantity<TetMesh> QuantityType;
+    typedef TetMeshQuantity QuantityType;
 
     TetMesh(std::string name_);
     TetMesh(std::string name_, std::vector<glm::vec3> vertices_,
@@ -40,6 +47,7 @@ class TetMesh : public QuantityStructure<TetMesh> {
     glm::vec3 faceCenter(size_t iF);
 
     std::vector<double> vertexVolumes;
+    size_t nVertices();
     size_t nFaces();
 
     void computeGeometryData();
@@ -71,16 +79,17 @@ class TetMesh : public QuantityStructure<TetMesh> {
     void centerBoundingBox();
 
     // = Drawing related things
-    bool quantitiesMustRefillBuffers = false;
     std::unique_ptr<gl::GLProgram> program;
     std::unique_ptr<gl::GLProgram> pickProgram;
     std::unique_ptr<gl::GLProgram> wireframeProgram;
     void prepare();
     void prepareWireframe();
     void preparePick();
+    void geometryChanged(); // call whenever geometry changed
     void refillBuffers();
     void fillGeometryBuffers(gl::GLProgram& p);
     void fillGeometryBuffersWireframe(gl::GLProgram& p);
+    void fillGeometryBuffersPick(gl::GLProgram& p);
 
     // = Visualization settings
     glm::vec3 baseColor;
@@ -91,6 +100,15 @@ class TetMesh : public QuantityStructure<TetMesh> {
     float sliceDist  = 1.0;
     float sliceTheta = 0.0;
     float slicePhi   = 0.0;
+
+    // Picking-related
+    // Order of indexing: vertices, faces
+    // TODO: add edges
+    // Within each set, uses the implicit ordering from the mesh data structure
+    // These starts are LOCAL indices, indexing elements only with the mesh
+    size_t facePickIndStart;
+    void buildVertexInfoGui(size_t vInd);
+    void buildFaceInfoGui(size_t fInd);
 
     template <class T>
     TetVertexScalarQuantity*

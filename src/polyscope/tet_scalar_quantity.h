@@ -7,13 +7,14 @@
 #include "polyscope/structure.h"
 
 #include "tet_mesh.h"
+#include "tet_mesh_quantity.h"
 
 namespace polyscope {
 
 // Forward declare TetMesh
 class TetMesh;
 
-class TetScalarQuantity : public Quantity<TetMesh> {
+class TetScalarQuantity : public TetMeshQuantity {
   public:
     TetScalarQuantity(std::string name, TetMesh& mesh_, std::string definedOn,
                       DataType dataType);
@@ -21,6 +22,7 @@ class TetScalarQuantity : public Quantity<TetMesh> {
     virtual void draw() override;
     virtual void buildCustomUI() override;
     virtual std::string niceName() override;
+    virtual void geometryChanged() override;
 
     virtual void writeToFile(std::string filename = "");
 
@@ -60,7 +62,7 @@ class TetVertexScalarQuantity : public TetScalarQuantity {
 
     void draw() override;
 
-    // void buildVertexInfoGUI(size_t vInd) override;
+    void buildVertexInfoGUI(size_t vInd) override;
     virtual void writeToFile(std::string filename = "") override;
 
     // === Members

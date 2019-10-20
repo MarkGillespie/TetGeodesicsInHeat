@@ -2,7 +2,9 @@
 
 #include "polyscope/affine_remapper.h"
 #include "polyscope/ribbon_artist.h"
+
 #include "tet_mesh.h"
+#include "tet_mesh_quantity.h"
 
 namespace polyscope {
 
@@ -13,7 +15,7 @@ class TetMesh;
 
 // Represents a general vector field associated with a tet mesh, including
 // R3 fields in the ambient space and R2 fields embedded in the tet
-class TetVectorQuantity : public Quantity<TetMesh> {
+class TetVectorQuantity : public TetMeshQuantity {
   public:
     TetVectorQuantity(std::string name, TetMesh& mesh_, MeshElement definedOn_,
                       VectorType vectorType_ = VectorType::STANDARD);
@@ -21,6 +23,7 @@ class TetVectorQuantity : public Quantity<TetMesh> {
 
     virtual void draw() override;
     virtual void buildCustomUI() override;
+    virtual void geometryChanged() override;
 
     // Allow children to append to the UI
     virtual void drawSubUI();
@@ -63,8 +66,8 @@ class TetVertexVectorQuantity : public TetVectorQuantity {
                             VectorType vectorType_ = VectorType::STANDARD);
 
     std::vector<glm::vec3> vectorField;
-
     virtual std::string niceName() override;
+    virtual void buildVertexInfoGUI(size_t vInd) override;
 };
 
 // ==== R3 vectors at faces
@@ -78,6 +81,7 @@ class TetFaceVectorQuantity : public TetVectorQuantity {
     std::vector<glm::vec3> vectorField;
 
     virtual std::string niceName() override;
+    virtual void buildFaceInfoGUI(size_t fInd) override;
 };
 
 } // namespace polyscope

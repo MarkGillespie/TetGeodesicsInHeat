@@ -21,7 +21,7 @@ namespace polyscope {
 TetVectorQuantity::TetVectorQuantity(std::string name, TetMesh& mesh_,
                                      MeshElement definedOn_,
                                      VectorType vectorType_)
-    : Quantity<TetMesh>(name, mesh_), vectorType(vectorType_),
+    : TetMeshQuantity(name, mesh_), vectorType(vectorType_),
       definedOn(definedOn_) {}
 
 void TetVectorQuantity::prepareVectorMapper() {
@@ -46,7 +46,7 @@ void TetVectorQuantity::prepareVectorMapper() {
 void TetVectorQuantity::draw() {
     if (!enabled) return;
 
-    if (program == nullptr || parent.quantitiesMustRefillBuffers) {
+    if (program == nullptr) {
         prepareProgram();
     }
 
@@ -64,6 +64,8 @@ void TetVectorQuantity::draw() {
 
     program->draw();
 }
+
+void TetVectorQuantity::geometryChanged() { program.reset(); }
 
 void TetVectorQuantity::prepareProgram() {
 
@@ -169,19 +171,19 @@ TetVertexVectorQuantity::TetVertexVectorQuantity(
     prepareVectorMapper();
 }
 
-// void TetVertexVectorQuantity::buildVertexInfoGUI(size_t iV) {
-// ImGui::TextUnformatted(name.c_str());
-// ImGui::NextColumn();
+void TetVertexVectorQuantity::buildVertexInfoGUI(size_t iV) {
+    ImGui::TextUnformatted(name.c_str());
+    ImGui::NextColumn();
 
-// std::stringstream buffer;
-// buffer << vectorField[iV];
-// ImGui::TextUnformatted(buffer.str().c_str());
+    std::stringstream buffer;
+    buffer << vectorField[iV];
+    ImGui::TextUnformatted(buffer.str().c_str());
 
-// ImGui::NextColumn();
-// ImGui::NextColumn();
-// ImGui::Text("magnitude: %g", glm::length(vectorField[iV]));
-// ImGui::NextColumn();
-//}
+    ImGui::NextColumn();
+    ImGui::NextColumn();
+    ImGui::Text("magnitude: %g", glm::length(vectorField[iV]));
+    ImGui::NextColumn();
+}
 
 std::string TetVertexVectorQuantity::niceName() {
     return name + " (vertex vector)";
@@ -211,19 +213,19 @@ TetFaceVectorQuantity::TetFaceVectorQuantity(std::string name,
     prepareVectorMapper();
 }
 
-// void TetFaceVectorQuantity::buildFaceInfoGUI(size_t iF) {
-// ImGui::TextUnformatted(name.c_str());
-// ImGui::NextColumn();
+void TetFaceVectorQuantity::buildFaceInfoGUI(size_t iF) {
+    ImGui::TextUnformatted(name.c_str());
+    ImGui::NextColumn();
 
-// std::stringstream buffer;
-// buffer << vectorField[iF];
-// ImGui::TextUnformatted(buffer.str().c_str());
+    std::stringstream buffer;
+    buffer << vectorField[iF];
+    ImGui::TextUnformatted(buffer.str().c_str());
 
-// ImGui::NextColumn();
-// ImGui::NextColumn();
-// ImGui::Text("magnitude: %g", glm::length(vectorField[iF]));
-// ImGui::NextColumn();
-//}
+    ImGui::NextColumn();
+    ImGui::NextColumn();
+    ImGui::Text("magnitude: %g", glm::length(vectorField[iF]));
+    ImGui::NextColumn();
+}
 
 std::string TetFaceVectorQuantity::niceName() {
     return name + " (face vector)";

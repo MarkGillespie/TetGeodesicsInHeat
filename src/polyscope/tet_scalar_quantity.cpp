@@ -1,5 +1,6 @@
 #include "tet_scalar_quantity.h"
 
+
 #include "polyscope/file_helpers.h"
 #include "polyscope/gl/materials/materials.h"
 #include "polyscope/gl/shaders.h"
@@ -15,7 +16,7 @@ namespace polyscope {
 
 TetScalarQuantity::TetScalarQuantity(std::string name, TetMesh& mesh_,
                                      std::string definedOn_, DataType dataType_)
-    : Quantity<TetMesh>(name, mesh_, true), dataType(dataType_),
+    : TetMeshQuantity(name, mesh_, true), dataType(dataType_),
       definedOn(definedOn_) {
 
     // Set the default colormap based on what kind of data is given
@@ -35,6 +36,7 @@ void TetScalarQuantity::draw() {
 
     program->draw();
 }
+void TetScalarQuantity::geometryChanged() { program.reset(); }
 
 void TetScalarQuantity::writeToFile(std::string filename) {
     polyscope::warning("Writing to file not yet implemented for this datatype");
@@ -161,7 +163,7 @@ void TetVertexScalarQuantity::createProgram() {
 void TetVertexScalarQuantity::draw() {
     if (!enabled) return;
 
-    if (program == nullptr || parent.quantitiesMustRefillBuffers) {
+    if (program == nullptr) {
         createProgram();
     }
 
@@ -204,11 +206,11 @@ void TetVertexScalarQuantity::writeToFile(std::string filename) {
 }
 
 
-// void TetVertexScalarQuantity::buildVertexInfoGUI(size_t vInd) {
-// ImGui::TextUnformatted(name.c_str());
-// ImGui::NextColumn();
-// ImGui::Text("%g", values[vInd]);
-// ImGui::NextColumn();
-//}
+void TetVertexScalarQuantity::buildVertexInfoGUI(size_t vInd) {
+    ImGui::TextUnformatted(name.c_str());
+    ImGui::NextColumn();
+    ImGui::Text("%g", values[vInd]);
+    ImGui::NextColumn();
+}
 
 } // namespace polyscope
