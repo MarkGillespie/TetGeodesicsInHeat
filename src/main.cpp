@@ -3,7 +3,6 @@
 #include "geometrycentral/surface/vertex_position_geometry.h"
 
 #include "polyscope/polyscope.h"
-#include "polyscope/surface_mesh.h"
 #include "polyscope/tet_mesh.h"
 
 #include "tet.h"
@@ -135,60 +134,27 @@ int main(int argc, char** argv) {
     polyscope::state::userCallback = myCallback;
 
     // Register the mesh with polyscope
-    psMesh =
-        polyscope::registerTetMesh(polyscope::guessNiceNameFromPath(filename),
-                                   mesh->vertexPositions(), mesh->tetList());
-    psMesh->addVertexScalarQuantity("x", xData);
-    psMesh->addVertexScalarQuantity("y", yData);
-    psMesh->addVertexScalarQuantity("z", zData);
+    // psMesh =
+    //     polyscope::registerTetMesh(polyscope::guessNiceNameFromPath(filename),
+    //                                mesh->vertexPositions(), mesh->tetList());
+    psMesh = polyscope::registerTetMesh("tMesh", mesh->vertexPositions(),
+                                        mesh->tetList());
+    polyscope::getTetMesh("tMesh");
     psMesh->addFaceVectorQuantity("normal", faceNormals);
 
-    for (size_t i = 0; i < evecs.size(); ++i) {
-        psMesh->addVertexScalarQuantity("evec " + std::to_string(i), evecs[i]);
-    }
+    // for (size_t i = 0; i < evecs.size(); ++i) {
+    //     psMesh->addVertexScalarQuantity("evec " + std::to_string(i),
+    //     evecs[i]);
+    // }
 
+    std::vector<double> startingPoints(mesh->vertices.size(), 0.0);
+    startingPoints[5]             = 1;
+    double h                      = mesh->meanEdgeLength();
+    std::vector<double> distances = mesh->distances(startingPoints, h);
+    auto* q = psMesh->addVertexScalarQuantity("distances", distances);
+    q->setEnabled(true);
+    cout << "meanEdgeLength: " << h << endl;
 
-    /*
-    std::random_device rd;
-    std::mt19937 e2(rd());
-    std::uniform_real_distribution<> dist(-2, 2);
-
-
-    std::vector<Vector3> positions;
-    positions.emplace_back(Vector3{dist(e2), dist(e2), dist(e2)});
-    positions.emplace_back(Vector3{dist(e2), dist(e2), dist(e2)});
-    positions.emplace_back(Vector3{dist(e2), dist(e2), dist(e2)});
-    positions.emplace_back(Vector3{dist(e2), dist(e2), dist(e2)});
-
-    for (size_t i = 0; i < 4; ++i) {
-      positions.emplace_back(positions[i] + Vector3{4, 0, 0});
-    }
-
-    std::vector<std::vector<size_t>> tets;
-    tets.emplace_back(std::vector<size_t>{0, 1, 2, 3});
-    tets.emplace_back(std::vector<size_t>{5, 4, 6, 7});
-    std::vector<std::vector<size_t>> neigh;
-    neigh.emplace_back(std::vector<size_t>{0, 0, 0, 0});
-    neigh.emplace_back(std::vector<size_t>{0, 0, 0, 0});
-
-    TetMesh* singleTetMesh = TetMesh::construct(positions, tets, neigh);
-
-    polyscope::TetMesh* psSingleTetMesh = polyscope::registerTetMesh(
-                                                                     "Single
-    Tet", singleTetMesh->vertexPositions(), singleTetMesh->tetList());
-
-    std::vector<glm::vec3> moreFaceNormals;
-    for (auto f : singleTetMesh->faceList()) {
-      Vector3 a = singleTetMesh->vertices[f[0]].position;
-      Vector3 b = singleTetMesh->vertices[f[1]].position;
-      Vector3 c = singleTetMesh->vertices[f[2]].position;
-
-      Vector3 N = cross(b-a, c-a);
-      N /= N.norm();
-      moreFaceNormals.emplace_back(glm::vec3{N.x, N.y, N.z});
-    }
-    psSingleTetMesh->addFaceVectorQuantity("normal", moreFaceNormals);
-    */
 
     // Give control to the polyscope gui
     polyscope::show();

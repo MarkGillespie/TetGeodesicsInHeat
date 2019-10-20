@@ -2,6 +2,9 @@
 
 namespace polyscope {
 
+const std::string TetMesh::structureTypeName = "Tet Mesh";
+std::string TetMesh::typeName() { return structureTypeName; }
+
 TetMesh::TetMesh(std::string name_)
     : QuantityStructure<TetMesh>(name_), name(name_) {}
 
@@ -338,8 +341,6 @@ double TetMesh::lengthScale() {
     std::tuple<glm::vec3, glm::vec3> bb = boundingBox();
     return glm::distance(std::get<1>(bb), std::get<0>(bb));
 }
-
-std::string TetMesh::typeName() { return "TetMesh"; }
 
 TetVertexScalarQuantity* TetMesh::addVertexScalarQuantityImpl(
     std::string name, const std::vector<double>& data, DataType type) {

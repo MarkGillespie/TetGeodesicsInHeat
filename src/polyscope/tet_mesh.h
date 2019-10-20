@@ -130,6 +130,8 @@ class TetMesh : public QuantityStructure<TetMesh> {
     addFaceVectorQuantityImpl(std::string name,
                               const std::vector<glm::vec3>& vectors,
                               VectorType vectorType);
+    // === Member variables ===
+    static const std::string structureTypeName;
 };
 
 // Register functions
@@ -145,6 +147,12 @@ TetMesh* registerTetMesh(std::string name, const V& vertexPositions,
     }
 
     return t;
+}
+
+// Shorthand to get a mesh from polyscope
+inline TetMesh* getTetMesh(std::string name = "") {
+    return dynamic_cast<TetMesh*>(
+        getStructure(TetMesh::structureTypeName, name));
 }
 
 } // namespace polyscope

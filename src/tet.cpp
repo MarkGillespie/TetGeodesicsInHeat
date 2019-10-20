@@ -1,6 +1,150 @@
 #include "tet.h"
 
+#include "polyscope/polyscope.h"
+#include "polyscope/tet_mesh.h"
+
 namespace CompArch {
+
+std::vector<double> TetMesh::distances(std::vector<double> start, double t) {
+    Eigen::VectorXd u0 = Eigen::VectorXd::Map(start.data(), start.size());
+    Eigen::SparseMatrix<double> L    = weakLaplacian();
+    Eigen::SparseMatrix<double> M    = massMatrix();
+    Eigen::SparseMatrix<double> flow = M + t * L;
+    Eigen::SimplicialLDLT<Eigen::SparseMatrix<double>> solver;
+    solver.compute(flow);
+
+    Eigen::VectorXd u = solver.solve(u0);
+
+    polyscope::getTetMesh("tMesh")->addVertexScalarQuantity("u", u);
+
+    Eigen::VectorXd divX = Eigen::VectorXd::Zero(u.size());
+
+    size_t printed = 0;
+    for (Tet t : tets) {
+        std::vector<Vector3> vertexPositions = layOutIntrinsicTet(t);
+        std::vector<double> tetU{u[t.verts[0]], u[t.verts[1]], u[t.verts[2]],
+                                 u[t.verts[3]]};
+        Vector3 tetGradU = grad(tetU, vertexPositions);
+        Vector3 X        = tetGradU.normalize();
+
+        std::vector<double> tetDivX = div(X, vertexPositions);
+        for (size_t i = 0; i < 4; ++i) {
+            divX[t.verts[i]] += tetDivX[i];
+        }
+        if (printed < 10) {
+            cout << "tetGradU: " << tetGradU << "\tX: " << X
+                 << "\ttetDivX[0]: " << tetDivX[0] << endl;
+            ++printed;
+        }
+    }
+
+    Eigen::VectorXd ones = Eigen::VectorXd::Ones(divX.size());
+    divX -= divX.dot(ones) * ones;
+    Eigen::VectorXd phi = solver.solve(divX);
+    std::vector<double> distances(phi.data(), phi.data() + phi.size());
+    double minDist = distances[0];
+    for (size_t i = 1; i < distances.size(); ++i) {
+        minDist = fmin(minDist, distances[i]);
+    }
+    for (size_t i = 1; i < distances.size(); ++i) {
+        distances[i] -= minDist;
+        if (distances[i] < 0) {
+            cout << i << ", " << distances[i] << ", " << minDist << endl;
+        }
+        assert(distances[i] >= 0);
+    }
+
+
+    for (size_t i = 0; i < 8; ++i) {
+        cout << "start[" << i << "]: " << start[i] << endl;
+    }
+    for (size_t i = 0; i < 8; ++i) {
+        cout << "u[" << i << "]: " << u[i] << endl;
+    }
+    for (size_t i = 0; i < 8; ++i) {
+        cout << "divX[" << i << "]: " << divX[i] << endl;
+    }
+    for (size_t i = 0; i < 8; ++i) {
+        cout << "phi[" << i << "]: " << phi[i] << endl;
+    }
+
+    return distances;
+}
+
+// return the gradient of function u linearly interpolated over a tetrahedron
+// with vertices p[0], ... , p[3]
+Vector3 grad(std::vector<double> u, std::vector<Vector3> p) {
+    Vector3 gradU;
+    double vol = dot(p[3] - p[0], cross(p[1] - p[0], p[2] - p[0])) / 6;
+
+    // The gradient of a function which is 1 at vertex 3 and 0 everywhere else
+    // is orthogonal to face 012, and has magnitude 1/h (where h is the height
+    // of the tetrahedron). We can compute this vector by taking the area
+    // normal of the base face and dividing it by 3 times the tet's volume
+    // (since volume is 1/3 base * height)
+
+    // Hand code cases because of orientation problems
+    // Face 012
+    Vector3 areaNormal = 0.5 * cross(p[1] - p[0], p[2] - p[0]);
+    gradU += u[3] * areaNormal / (3 * vol);
+    // Face 023
+    areaNormal = 0.5 * cross(p[2] - p[0], p[3] - p[0]);
+    gradU += u[1] * areaNormal / (3 * vol);
+    // Face 031
+    areaNormal = 0.5 * cross(p[3] - p[0], p[1] - p[0]);
+    gradU += u[2] * areaNormal / (3 * vol);
+    // Face 213
+    areaNormal = 0.5 * cross(p[1] - p[2], p[3] - p[2]);
+    gradU += u[0] * areaNormal / (3 * vol);
+
+    return gradU;
+}
+
+// returns the integrated divergence of vector field X associated with
+// each vertex p[i] of a tetrahedron
+std::vector<double> div(Vector3 X, std::vector<Vector3> p) {
+    std::vector<double> divX(4, 0.0);
+
+    // Since X is constant inside of the tet, the divergence associated
+    // with each vertex is the flux of X through the face bits associated
+    // with that vertex. So to vertex i, we assign divergence
+    // 1/3 * (sum of fluxes through faces incident on i).
+    // Note that the flux of a constant vector through a face is just
+    // that vector dotted with the area normal.
+
+    // We take the dot product of X with each (inward-facing) face normal.
+    // Hand code cases because of orientation problems
+    // Face 012
+    Vector3 areaNormal3 = 0.5 * cross(p[1] - p[0], p[2] - p[0]);
+    double flux3        = dot(X, areaNormal3);
+    divX[0] += 1 / 3. * flux3;
+    divX[1] += 1 / 3. * flux3;
+    divX[2] += 1 / 3. * flux3;
+
+    // Face 023
+    Vector3 areaNormal1 = 0.5 * cross(p[2] - p[0], p[3] - p[0]);
+    double flux1        = dot(X, areaNormal1);
+    divX[0] += 1 / 3. * flux1;
+    divX[2] += 1 / 3. * flux1;
+    divX[3] += 1 / 3. * flux1;
+
+    // Face 031
+    Vector3 areaNormal2 = 0.5 * cross(p[3] - p[0], p[1] - p[0]);
+    double flux2        = dot(X, areaNormal2);
+    divX[0] += 1 / 3. * flux2;
+    divX[3] += 1 / 3. * flux2;
+    divX[1] += 1 / 3. * flux2;
+
+    // Face 213
+    Vector3 areaNormal0 = 0.5 * cross(p[1] - p[2], p[3] - p[2]);
+    double flux0        = dot(X, areaNormal0);
+    divX[2] += 1 / 3. * flux0;
+    divX[1] += 1 / 3. * flux0;
+    divX[3] += 1 / 3. * flux0;
+
+    return divX;
+}
+
 TetMesh::TetMesh() {}
 
 Eigen::SparseMatrix<double> TetMesh::massMatrix() {
@@ -36,30 +180,6 @@ Eigen::SparseMatrix<double> TetMesh::weakLaplacian() {
 
     cotanLaplacian.setFromTriplets(tripletList.begin(), tripletList.end());
     return cotanLaplacian;
-}
-
-
-// return the gradient of function u linearly interpolated over a tetrahedron
-// with vertices p[0], ... , p[3]
-Vector3 grad(std::vector<double> u, std::vector<Vector3> p) {
-    Vector3 gradU;
-    double vol = dot(p[3] - p[0], cross(p[1] - p[0], p[2] - p[0]));
-
-    // Hand code cases because of orientation problems
-    // Face 012
-    Vector3 areaNormal = -0.5 * cross(p[1] - p[0], p[2] - p[0]);
-    gradU += u[3] * areaNormal / (3 * vol);
-    // Face 023
-    areaNormal = -0.5 * cross(p[2] - p[0], p[3] - p[0]);
-    gradU += u[1] * areaNormal / (3 * vol);
-    // Face 031
-    areaNormal = -0.5 * cross(p[3] - p[0], p[1] - p[0]);
-    gradU += u[2] * areaNormal / (3 * vol);
-    // Face 213
-    areaNormal = -0.5 * cross(p[1] - p[2], p[3] - p[2]);
-    gradU += u[0] * areaNormal / (3 * vol);
-
-    return gradU;
 }
 
 // Returns the angle of the corner opposite edge a in a triangle
@@ -106,7 +226,7 @@ std::vector<Vector3> TetMesh::layOutIntrinsicTet(Tet t) {
     double dihedralAngle = dihedralAngles(t)[0];
     positions.emplace_back(e03 * Vector3{cos(angle),
                                          -cos(dihedralAngle) * sin(angle),
-                                         sin(dihedralAngle) * sin(angle)});
+                                         -sin(dihedralAngle) * sin(angle)});
 
 
     return positions;
@@ -266,6 +386,42 @@ std::vector<double> TetMesh::cotanWeights(Tet t) {
     return weights;
 }
 
+double TetMesh::meanEdgeLength() {
+    cout << "WARNING: meanEdgeLength doesn't handle multiplicity correctly"
+         << endl;
+
+    double totalEdgeLength = 0;
+    size_t nEdges          = 0;
+    for (Tet t : tets) {
+        Vector3 p0 = vertices[t.verts[0]].position;
+        Vector3 p1 = vertices[t.verts[1]].position;
+        Vector3 p2 = vertices[t.verts[2]].position;
+        Vector3 p3 = vertices[t.verts[3]].position;
+
+        double u0 = scaleFactors[t.verts[0]];
+        double u1 = scaleFactors[t.verts[1]];
+        double u2 = scaleFactors[t.verts[2]];
+        double u3 = scaleFactors[t.verts[3]];
+
+        double e01 = norm(p0 - p1) * exp(0.5 * (u0 + u1));
+        double e02 = norm(p0 - p2) * exp(0.5 * (u0 + u2));
+        double e03 = norm(p0 - p3) * exp(0.5 * (u0 + u3));
+        double e12 = norm(p1 - p2) * exp(0.5 * (u1 + u2));
+        double e13 = norm(p1 - p3) * exp(0.5 * (u1 + u3));
+        double e23 = norm(p2 - p3) * exp(0.5 * (u2 + u3));
+
+        totalEdgeLength += e01;
+        totalEdgeLength += e02;
+        totalEdgeLength += e03;
+        totalEdgeLength += e12;
+        totalEdgeLength += e13;
+        totalEdgeLength += e23;
+
+        nEdges += 6;
+    }
+
+    return totalEdgeLength / nEdges;
+}
 
 // Relations between edge lengths, dihedral and solid angles in tetrahedra
 // Wirth and Dreiding

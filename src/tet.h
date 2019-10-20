@@ -5,6 +5,7 @@
 #include <sstream>
 #include <vector>
 
+#include <Eigen/SparseCholesky>
 #include <Eigen/SparseCore>
 
 using geometrycentral::Vector3;
@@ -54,6 +55,7 @@ class TetMesh {
     double tetVolume(Tet t);
     std::vector<double> dihedralAngles(Tet t);
     std::vector<double> cotanWeights(Tet t);
+    double meanEdgeLength();
     /* std::vector<double> dihedralAngles(Tet t); */
 
     TetMesh();
@@ -75,6 +77,8 @@ class TetMesh {
     Eigen::SparseMatrix<double> weakLaplacian();
     Eigen::SparseMatrix<double> massMatrix();
 
+    std::vector<double> distances(std::vector<double> start, double t);
+
     std::vector<Vector3> layOutIntrinsicTet(Tet t);
 
     // Assumes that *.node file is at same place as *.ele file,
@@ -87,5 +91,9 @@ class TetMesh {
 // return the gradient of function u linearly interpolated over a tetrahedron
 // with vertices p[0], ... , p[3]
 Vector3 grad(std::vector<double> u, std::vector<Vector3> p);
+
+// returns the integrated divergence of vector field X associated with
+// each vertex p[i] of a tetrahedron
+std::vector<double> div(Vector3 X, std::vector<Vector3> p);
 
 } // namespace CompArch
