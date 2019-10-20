@@ -389,7 +389,7 @@ void TetMesh::buildCustomUI() {
     { // Edge width
         ImGui::PushItemWidth(100);
         ImGui::SliderFloat("Edge Width", &edgeWidth, 0.0, 1., "%.5f", 2.);
-        if (ImGui::SliderFloat("Plane Distance", &sliceDist, -10., 10., "%.5f",
+        if (ImGui::SliderFloat("Plane Distance", &sliceDist, -1., 1., "%.5f",
                                2.)) {
             geometryChanged();
         }

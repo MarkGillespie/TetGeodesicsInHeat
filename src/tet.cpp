@@ -118,28 +118,28 @@ std::vector<double> div(Vector3 X, std::vector<Vector3> p) {
     // We take the dot product of X with each (inward-facing) face normal.
     // Hand code cases because of orientation problems
     // Face 012
-    Vector3 areaNormal3 = 0.5 * cross(p[1] - p[0], p[2] - p[0]);
+    Vector3 areaNormal3 = -0.5 * cross(p[1] - p[0], p[2] - p[0]);
     double flux3        = dot(X, areaNormal3);
     divX[0] += 1 / 3. * flux3;
     divX[1] += 1 / 3. * flux3;
     divX[2] += 1 / 3. * flux3;
 
     // Face 023
-    Vector3 areaNormal1 = 0.5 * cross(p[2] - p[0], p[3] - p[0]);
+    Vector3 areaNormal1 = -0.5 * cross(p[2] - p[0], p[3] - p[0]);
     double flux1        = dot(X, areaNormal1);
     divX[0] += 1 / 3. * flux1;
     divX[2] += 1 / 3. * flux1;
     divX[3] += 1 / 3. * flux1;
 
     // Face 031
-    Vector3 areaNormal2 = 0.5 * cross(p[3] - p[0], p[1] - p[0]);
+    Vector3 areaNormal2 = -0.5 * cross(p[3] - p[0], p[1] - p[0]);
     double flux2        = dot(X, areaNormal2);
     divX[0] += 1 / 3. * flux2;
     divX[3] += 1 / 3. * flux2;
     divX[1] += 1 / 3. * flux2;
 
     // Face 213
-    Vector3 areaNormal0 = 0.5 * cross(p[1] - p[2], p[3] - p[2]);
+    Vector3 areaNormal0 = -0.5 * cross(p[1] - p[2], p[3] - p[2]);
     double flux0        = dot(X, areaNormal0);
     divX[2] += 1 / 3. * flux0;
     divX[1] += 1 / 3. * flux0;

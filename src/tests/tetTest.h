@@ -151,3 +151,46 @@ TEST_F(TetTest, divSymmetric) {
     EXPECT_NEAR(divX[0], divX[1], 1e-8);
     EXPECT_NEAR(divX[1], divX[2], 1e-8);
 }
+
+double flux0(Vector3 X, Vector3 p0, Vector3 p1, Vector3 p2, Vector3 p3) {
+
+    // Compute barycentric subdivision
+    Vector3 p01   = 0.5 * (p0 + p1);
+    Vector3 p02   = 0.5 * (p0 + p2);
+    Vector3 p03   = 0.5 * (p0 + p3);
+    Vector3 p012  = 1 / 3. * (p0 + p1 + p2);
+    Vector3 p013  = 1 / 3. * (p0 + p1 + p3);
+    Vector3 p023  = 1 / 3. * (p0 + p2 + p3);
+    Vector3 p0123 = 0.25 * (p0 + p1 + p2 + p3);
+
+    Vector3 aN12 = 0.5 * cross(p012 - p0123, p01 - p0123);
+    Vector3 aN21 = 0.5 * cross(p02 - p0123, p012 - p0123);
+    Vector3 aN23 = 0.5 * cross(p023 - p0123, p02 - p0123);
+    Vector3 aN32 = 0.5 * cross(p03 - p0123, p023 - p0123);
+    Vector3 aN31 = 0.5 * cross(p013 - p0123, p03 - p0123);
+    Vector3 aN13 = 0.5 * cross(p01 - p0123, p013 - p0123);
+
+    return dot(aN12, X) + dot(aN21, X) + dot(aN23, X) + dot(aN32, X) +
+           dot(aN31, X) + dot(aN13, X);
+}
+
+TEST_F(TetTest, div) {
+    Vector3 X{0, 0, 1};
+    std::vector<Vector3> p;
+    p.emplace_back(Vector3{1, 0, 0});
+    p.emplace_back(Vector3{cos(2 * PI / 3), sin(2 * PI / 3), 0});
+    p.emplace_back(Vector3{cos(2 * PI / 3), -sin(2 * PI / 3), 0});
+    p.emplace_back(Vector3{0, 0, 1});
+
+    std::vector<double> divX = CompArch::div(X, p);
+
+    double Xflux0 = flux0(X, p[0], p[1], p[2], p[3]);
+    double Xflux1 = flux0(X, p[1], p[2], p[0], p[3]);
+    double Xflux2 = flux0(X, p[2], p[0], p[1], p[3]);
+    double Xflux3 = flux0(X, p[3], p[2], p[1], p[0]);
+
+    EXPECT_NEAR(divX[0], Xflux0, 1e-8);
+    EXPECT_NEAR(divX[1], Xflux1, 1e-8);
+    EXPECT_NEAR(divX[2], Xflux2, 1e-8);
+    EXPECT_NEAR(divX[3], Xflux3, 1e-8);
+}
