@@ -32,8 +32,8 @@ std::vector<double> TetMesh::distances(std::vector<double> start, double t) {
             divX[t.verts[i]] += tetDivX[i];
         }
         if (printed < 10) {
-            cout << "tetGradU: " << tetGradU << "\tX: " << X
-                 << "\ttetDivX[0]: " << tetDivX[0] << endl;
+            // cout << "tetGradU: " << tetGradU << "\tX: " << X
+            //      << "\ttetDivX[0]: " << tetDivX[0] << endl;
             ++printed;
         }
     }
@@ -41,6 +41,9 @@ std::vector<double> TetMesh::distances(std::vector<double> start, double t) {
     Eigen::VectorXd ones = Eigen::VectorXd::Ones(divX.size());
     divX -= divX.dot(ones) * ones;
     Eigen::VectorXd phi = solver.solve(divX);
+    polyscope::getTetMesh("tMesh")->addVertexScalarQuantity("divX", divX);
+    polyscope::getTetMesh("tMesh")->addVertexScalarQuantity("phi", phi);
+
     std::vector<double> distances(phi.data(), phi.data() + phi.size());
     double minDist = distances[0];
     for (size_t i = 1; i < distances.size(); ++i) {
@@ -55,18 +58,18 @@ std::vector<double> TetMesh::distances(std::vector<double> start, double t) {
     }
 
 
-    for (size_t i = 0; i < 8; ++i) {
-        cout << "start[" << i << "]: " << start[i] << endl;
-    }
-    for (size_t i = 0; i < 8; ++i) {
-        cout << "u[" << i << "]: " << u[i] << endl;
-    }
-    for (size_t i = 0; i < 8; ++i) {
-        cout << "divX[" << i << "]: " << divX[i] << endl;
-    }
-    for (size_t i = 0; i < 8; ++i) {
-        cout << "phi[" << i << "]: " << phi[i] << endl;
-    }
+    // for (size_t i = 0; i < 8; ++i) {
+    //     cout << "start[" << i << "]: " << start[i] << endl;
+    // }
+    // for (size_t i = 0; i < 8; ++i) {
+    //     cout << "u[" << i << "]: " << u[i] << endl;
+    // }
+    // for (size_t i = 0; i < 8; ++i) {
+    //     cout << "divX[" << i << "]: " << divX[i] << endl;
+    // }
+    // for (size_t i = 0; i < 8; ++i) {
+    //     cout << "phi[" << i << "]: " << phi[i] << endl;
+    // }
 
     return distances;
 }

@@ -125,3 +125,29 @@ TEST_F(TetTest, gradient) {
 
     EXPECT_VEC3_NEAR(v, otherV, 1e-8);
 }
+
+TEST_F(TetTest, divSumsToZero) {
+    Vector3 X{1, 2, 3};
+    std::vector<Vector3> p;
+    for (size_t i = 0; i < 4; ++i) {
+        p.emplace_back(tetMesh->vertices[i].position);
+    }
+
+    std::vector<double> divX = CompArch::div(X, p);
+
+    EXPECT_NEAR(divX[0] + divX[1] + divX[2] + divX[3], 0, 1e-8);
+}
+
+TEST_F(TetTest, divSymmetric) {
+    Vector3 X{0, 0, 1};
+    std::vector<Vector3> p;
+    p.emplace_back(Vector3{1, 0, 0});
+    p.emplace_back(Vector3{cos(2 * PI / 3), sin(2 * PI / 3), 0});
+    p.emplace_back(Vector3{cos(2 * PI / 3), -sin(2 * PI / 3), 0});
+    p.emplace_back(Vector3{0, 0, 1});
+
+    std::vector<double> divX = CompArch::div(X, p);
+
+    EXPECT_NEAR(divX[0], divX[1], 1e-8);
+    EXPECT_NEAR(divX[1], divX[2], 1e-8);
+}
