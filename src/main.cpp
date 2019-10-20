@@ -94,6 +94,8 @@ int main(int argc, char** argv) {
     psMesh->addFaceVectorQuantity("normal", faceNormals);
     psMesh->addVertexScalarQuantity("volumes", mesh->vertexDualVolumes);
 
+    computeDistances(0.01);
+
     // for (size_t i = 0; i < evecs.size(); ++i) {
     //     psMesh->addVertexScalarQuantity("evec " + std::to_string(i),
     //     evecs[i]);

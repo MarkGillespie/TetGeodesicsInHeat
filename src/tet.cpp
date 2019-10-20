@@ -17,45 +17,51 @@ std::vector<double> TetMesh::distances(std::vector<double> start, double t) {
 
     polyscope::getTetMesh("tMesh")->addVertexScalarQuantity("u", u);
 
-    std::vector<glm::vec3> faceGradU;
-    std::vector<double> faceAreas;
-    size_t printed = 0;
-    for (auto f : faceList()) {
-        Vector3 a = vertices[f[0]].position;
-        Vector3 b = vertices[f[1]].position;
-        Vector3 c = vertices[f[2]].position;
+    // std::vector<glm::vec3> faceGradU;
+    // std::vector<double> faceAreas;
+    // size_t printed = 0;
+    // for (auto f : faceList()) {
+    //     Vector3 a = vertices[f[0]].position;
+    //     Vector3 b = vertices[f[1]].position;
+    //     Vector3 c = vertices[f[2]].position;
 
-        Vector3 N   = cross(b - a, c - a);
-        double twoA = N.norm();
-        N /= twoA;
+    //     Vector3 N   = cross(b - a, c - a);
+    //     double twoA = N.norm();
+    //     N /= twoA;
 
-        Vector3 fGrad;
+    //     Vector3 fGrad{0, 0, 0};
 
-        fGrad += u[f[0]] * cross(N, c - b);
-        fGrad += u[f[1]] * cross(N, a - c);
-        fGrad += u[f[2]] * cross(N, b - a);
+    //     fGrad += u[f[0]] * cross(N, c - b);
+    //     fGrad += u[f[1]] * cross(N, a - c);
+    //     fGrad += u[f[2]] * cross(N, b - a);
+    //     fGrad /= twoA;
 
-        fGrad /= twoA;
-        faceGradU.emplace_back(glm::vec3{fGrad.x, fGrad.y, fGrad.z});
-        faceAreas.emplace_back(twoA / 2);
-        if (printed < 10) {
-            cout << "fGrad: " << fGrad << endl;
-            ++printed;
-        }
-    }
-    polyscope::getTetMesh("tMesh")->addFaceVectorQuantity("grad u", faceGradU);
-    polyscope::getTetMesh("tMesh")->addFaceScalarQuantity("area", faceAreas);
+    //     fGrad = fGrad.normalize();
+
+    //     faceGradU.emplace_back(glm::vec3{fGrad.x, fGrad.y, fGrad.z});
+    //     faceAreas.emplace_back(twoA / 2);
+    //     if (printed < 10) {
+    //         cout << "fGrad: " << fGrad << endl;
+    //         ++printed;
+    //     }
+    // }
+    // polyscope::getTetMesh("tMesh")->addFaceVectorQuantity("grad u",
+    // faceGradU); polyscope::getTetMesh("tMesh")->addFaceScalarQuantity("area",
+    // faceAreas);
 
     Eigen::VectorXd divX = Eigen::VectorXd::Zero(u.size());
 
     for (Tet t : tets) {
-        std::vector<Vector3> vertexPositions = layOutIntrinsicTet(t);
-        std::vector<double> tetU{u[t.verts[0]], u[t.verts[1]], u[t.verts[2]],
-                                 u[t.verts[3]]};
+        // std::array<Vector3, 4> vertexPositions = layOutIntrinsicTet(t);
+        std::array<Vector3, 4> vertexPositions{
+            vertices[t.verts[0]].position, vertices[t.verts[1]].position,
+            vertices[t.verts[2]].position, vertices[t.verts[3]].position};
+        std::array<double, 4> tetU{u[t.verts[0]], u[t.verts[1]], u[t.verts[2]],
+                                   u[t.verts[3]]};
         Vector3 tetGradU = grad(tetU, vertexPositions);
         Vector3 X        = tetGradU.normalize();
 
-        std::vector<double> tetDivX = div(X, vertexPositions);
+        std::array<double, 4> tetDivX = div(X, vertexPositions);
         for (size_t i = 0; i < 4; ++i) {
             divX[t.verts[i]] += tetDivX[i];
         }
@@ -96,7 +102,7 @@ std::vector<double> TetMesh::distances(std::vector<double> start, double t) {
 
 // return the gradient of function u linearly interpolated over a tetrahedron
 // with vertices p[0], ... , p[3]
-Vector3 grad(std::vector<double> u, std::vector<Vector3> p) {
+Vector3 grad(std::array<double, 4> u, std::array<Vector3, 4> p) {
     Vector3 gradU;
     double vol = dot(p[3] - p[0], cross(p[1] - p[0], p[2] - p[0])) / 6;
 
@@ -125,8 +131,8 @@ Vector3 grad(std::vector<double> u, std::vector<Vector3> p) {
 
 // returns the integrated divergence of vector field X associated with
 // each vertex p[i] of a tetrahedron
-std::vector<double> div(Vector3 X, std::vector<Vector3> p) {
-    std::vector<double> divX(4, 0.0);
+std::array<double, 4> div(Vector3 X, std::array<Vector3, 4> p) {
+    std::array<double, 4> divX{0, 0, 0, 0};
 
     // Since X is constant inside of the tet, the divergence associated
     // with each vertex is the flux of X through the face bits associated
@@ -217,8 +223,7 @@ double cornerAngle(double a, double b, double c) {
 // We put vertex 2 somewhere in the x-y plane, and vertex 3 somewhere
 // in space
 // List returned in vertex order
-std::vector<Vector3> TetMesh::layOutIntrinsicTet(Tet t) {
-    std::vector<Vector3> positions;
+std::array<Vector3, 4> TetMesh::layOutIntrinsicTet(Tet t) {
 
     Vector3 p0 = vertices[t.verts[0]].position;
     Vector3 p1 = vertices[t.verts[1]].position;
@@ -237,10 +242,10 @@ std::vector<Vector3> TetMesh::layOutIntrinsicTet(Tet t) {
     double e13 = norm(p1 - p3) * exp(0.5 * (u1 + u3));
     double e23 = norm(p2 - p3) * exp(0.5 * (u2 + u3));
 
-    positions.emplace_back(Vector3{0, 0, 0});
-    positions.emplace_back(Vector3{e01, 0, 0});
+    Vector3 pos0 = Vector3{0, 0, 0};
+    Vector3 pos1 = Vector3{e01, 0, 0};
     double angle = cornerAngle(e12, e01, e02);
-    positions.emplace_back(e02 * Vector3{cos(angle), -sin(angle), 0});
+    Vector3 pos2 = e02 * Vector3{cos(angle), -sin(angle), 0};
 
     // To place vertex 3, we find the angle at the corner of v0 in face v0-v1-v3
     // Together with the dihedral angle between the 013 face and the 012 face
@@ -248,11 +253,10 @@ std::vector<Vector3> TetMesh::layOutIntrinsicTet(Tet t) {
     // go
     angle                = cornerAngle(e13, e01, e03);
     double dihedralAngle = dihedralAngles(t)[0];
-    positions.emplace_back(e03 * Vector3{cos(angle),
-                                         -cos(dihedralAngle) * sin(angle),
-                                         -sin(dihedralAngle) * sin(angle)});
+    Vector3 pos3 = e03 * Vector3{cos(angle), -cos(dihedralAngle) * sin(angle),
+                                 -sin(dihedralAngle) * sin(angle)};
 
-
+    std::array<Vector3, 4> positions{pos0, pos1, pos2, pos3};
     return positions;
 }
 
@@ -305,7 +309,7 @@ double area(double a, double b, double c) {
 
 // Relations between edge lengths, dihedral and solid angles in tetrahedra
 // Wirth and Dreiding
-std::vector<double> TetMesh::dihedralAngles(Tet t) {
+std::array<double, 6> TetMesh::dihedralAngles(Tet t) {
     Vector3 p0 = vertices[t.verts[0]].position;
     Vector3 p1 = vertices[t.verts[1]].position;
     Vector3 p2 = vertices[t.verts[2]].position;
@@ -365,21 +369,16 @@ std::vector<double> TetMesh::dihedralAngles(Tet t) {
     double cos13 = d13 / sqrt(d013 * d123);
     double cos23 = d23 / sqrt(d023 * d123);
 
-    std::vector<double> angles;
-    angles.emplace_back(acos(cos01));
-    angles.emplace_back(acos(cos02));
-    angles.emplace_back(acos(cos03));
-    angles.emplace_back(acos(cos12));
-    angles.emplace_back(acos(cos13));
-    angles.emplace_back(acos(cos23));
+    std::array<double, 6> angles{acos(cos01), acos(cos02), acos(cos03),
+                                 acos(cos12), acos(cos13), acos(cos23)};
 
     return angles;
 }
 
 double cot(double theta) { return 1 / tan(theta); }
 
-std::vector<double> TetMesh::cotanWeights(Tet t) {
-    std::vector<double> angles = dihedralAngles(t);
+std::array<double, 6> TetMesh::cotanWeights(Tet t) {
+    std::array<double, 6> angles = dihedralAngles(t);
 
     Vector3 p0 = vertices[t.verts[0]].position;
     Vector3 p1 = vertices[t.verts[1]].position;
@@ -398,15 +397,12 @@ std::vector<double> TetMesh::cotanWeights(Tet t) {
     double e13 = norm(p1 - p3) * exp(0.5 * (u1 + u3));
     double e23 = norm(p2 - p3) * exp(0.5 * (u2 + u3));
 
-    std::vector<double> weights;
     // Weird order since the cotan weight for edge e_ij comes from the
     // _opposite_ edge e_kl
-    weights.emplace_back(e23 * cot(angles[5]) / 6);
-    weights.emplace_back(e13 * cot(angles[4]) / 6);
-    weights.emplace_back(e12 * cot(angles[3]) / 6);
-    weights.emplace_back(e03 * cot(angles[2]) / 6);
-    weights.emplace_back(e02 * cot(angles[1]) / 6);
-    weights.emplace_back(e01 * cot(angles[0]) / 6);
+    std::array<double, 6> weights{
+        e23 * cot(angles[5]) / 6, e13 * cot(angles[4]) / 6,
+        e12 * cot(angles[3]) / 6, e03 * cot(angles[2]) / 6,
+        e02 * cot(angles[1]) / 6, e01 * cot(angles[0]) / 6};
     return weights;
 }
 
@@ -461,7 +457,7 @@ void TetMesh::recomputeGeometry() {
             vertexDualVolumes[tets[iT].verts[i]] += vol / 4;
         }
 
-        std::vector<double> tetWeights = cotanWeights(tets[iT]);
+        std::array<double, 6> tetWeights = cotanWeights(tets[iT]);
         partialEdgeCotanWeights.insert(partialEdgeCotanWeights.end(),
                                        tetWeights.begin(), tetWeights.end());
     }

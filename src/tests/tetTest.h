@@ -72,7 +72,7 @@ TEST_F(TetTest, dihedralAngleFormulaTest) {
     double alpha13 = PI - acos(dot(n031, n213));
     double alpha23 = PI - acos(dot(n023, n213));
 
-    std::vector<double> angles = tetMesh->dihedralAngles(t);
+    std::array<double, 6> angles = tetMesh->dihedralAngles(t);
     EXPECT_FLOAT_EQ(alpha01, angles[0]);
     EXPECT_FLOAT_EQ(alpha02, angles[1]);
     EXPECT_FLOAT_EQ(alpha03, angles[2]);
@@ -83,8 +83,8 @@ TEST_F(TetTest, dihedralAngleFormulaTest) {
 
 TEST_F(TetTest, layOutTet) {
 
-    CompArch::Tet t        = tetMesh->tets[0];
-    std::vector<Vector3> p = tetMesh->layOutIntrinsicTet(t);
+    CompArch::Tet t          = tetMesh->tets[0];
+    std::array<Vector3, 4> p = tetMesh->layOutIntrinsicTet(t);
     EXPECT_GE(dot(p[3] - p[0], cross(p[1] - p[0], p[2] - p[0])), 0);
 
     Vector3 p0 = tetMesh->vertices[t.verts[0]].position;
@@ -114,11 +114,11 @@ TEST_F(TetTest, layOutTet) {
 
 TEST_F(TetTest, gradient) {
     Vector3 v{1, 2, 3};
-    std::vector<Vector3> pos;
-    std::vector<double> u;
+    std::array<Vector3, 4> pos;
+    std::array<double, 4> u;
     for (size_t i = 0; i < 4; ++i) {
-        pos.emplace_back(tetMesh->vertices[i].position);
-        u.emplace_back(dot(v, pos[i]));
+        pos[i] = tetMesh->vertices[i].position;
+        u[i]   = dot(v, pos[i]);
     }
 
     Vector3 otherV = CompArch::grad(u, pos);
@@ -128,25 +128,25 @@ TEST_F(TetTest, gradient) {
 
 TEST_F(TetTest, divSumsToZero) {
     Vector3 X{1, 2, 3};
-    std::vector<Vector3> p;
+    std::array<Vector3, 4> p;
     for (size_t i = 0; i < 4; ++i) {
-        p.emplace_back(tetMesh->vertices[i].position);
+        p[i] = tetMesh->vertices[i].position;
     }
 
-    std::vector<double> divX = CompArch::div(X, p);
+    std::array<double, 4> divX = CompArch::div(X, p);
 
     EXPECT_NEAR(divX[0] + divX[1] + divX[2] + divX[3], 0, 1e-8);
 }
 
 TEST_F(TetTest, divSymmetric) {
     Vector3 X{0, 0, 1};
-    std::vector<Vector3> p;
-    p.emplace_back(Vector3{1, 0, 0});
-    p.emplace_back(Vector3{cos(2 * PI / 3), sin(2 * PI / 3), 0});
-    p.emplace_back(Vector3{cos(2 * PI / 3), -sin(2 * PI / 3), 0});
-    p.emplace_back(Vector3{0, 0, 1});
+    std::array<Vector3, 4> p{
+        Vector3{1, 0, 0}, Vector3{cos(2 * PI / 3), sin(2 * PI / 3), 0},
+        Vector3{cos(2 * PI / 3), -sin(2 * PI / 3), 0}, Vector3{0, 0, 1}
 
-    std::vector<double> divX = CompArch::div(X, p);
+    };
+
+    std::array<double, 4> divX = CompArch::div(X, p);
 
     EXPECT_NEAR(divX[0], divX[1], 1e-8);
     EXPECT_NEAR(divX[1], divX[2], 1e-8);
@@ -176,13 +176,13 @@ double flux0(Vector3 X, Vector3 p0, Vector3 p1, Vector3 p2, Vector3 p3) {
 
 TEST_F(TetTest, div) {
     Vector3 X{0, 0, 1};
-    std::vector<Vector3> p;
-    p.emplace_back(Vector3{1, 0, 0});
-    p.emplace_back(Vector3{cos(2 * PI / 3), sin(2 * PI / 3), 0});
-    p.emplace_back(Vector3{cos(2 * PI / 3), -sin(2 * PI / 3), 0});
-    p.emplace_back(Vector3{0, 0, 1});
+    std::array<Vector3, 4> p{
+        Vector3{1, 0, 0}, Vector3{cos(2 * PI / 3), sin(2 * PI / 3), 0},
+        Vector3{cos(2 * PI / 3), -sin(2 * PI / 3), 0}, Vector3{0, 0, 1}
 
-    std::vector<double> divX = CompArch::div(X, p);
+    };
+
+    std::array<double, 4> divX = CompArch::div(X, p);
 
     double Xflux0 = flux0(X, p[0], p[1], p[2], p[3]);
     double Xflux1 = flux0(X, p[1], p[2], p[0], p[3]);
