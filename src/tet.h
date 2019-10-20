@@ -74,10 +74,17 @@ class TetMesh {
         Eigen::SparseMatrix<double> weakLaplacian();
         Eigen::SparseMatrix<double> massMatrix();
 
+        std::vector<Vector3> layOutIntrinsicTet(Tet t);
+
         // Assumes that *.node file is at same place as *.ele file,
         // but just ends in node
         static TetMesh* loadFromFile(string elePath);
         static double intrinsicVolume(double U, double u, double V, double v, double W, double w);
 };
+
+// return the gradient of function u linearly interpolated over a tetrahedron with
+// vertices p[0], ... , p[3]
+Vector3 grad(std::vector<double> u, std::vector<Vector3> p);
+
 } // CompArch
 
