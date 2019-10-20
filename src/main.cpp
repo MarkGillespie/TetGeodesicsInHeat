@@ -25,8 +25,9 @@ float diffusionTime = 0.001;
 
 void computeDistances(float diffusionTime) {
     std::vector<double> startingPoints(mesh->vertices.size(), 0.0);
-    startingPoints[5] = 1;
-    double h          = mesh->meanEdgeLength();
+    startingPoints[1850] = 1;
+    double h             = mesh->meanEdgeLength();
+    if (diffusionTime < 0) diffusionTime = h;
     std::vector<double> distances =
         mesh->distances(startingPoints, diffusionTime);
     auto* q = psMesh->addVertexScalarQuantity("distances", distances);
@@ -94,7 +95,7 @@ int main(int argc, char** argv) {
     psMesh->addFaceVectorQuantity("normal", faceNormals);
     psMesh->addVertexScalarQuantity("volumes", mesh->vertexDualVolumes);
 
-    computeDistances(0.01);
+    computeDistances(-1);
 
     // for (size_t i = 0; i < evecs.size(); ++i) {
     //     psMesh->addVertexScalarQuantity("evec " + std::to_string(i),

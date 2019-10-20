@@ -122,7 +122,27 @@ TEST_F(TetTest, gradient) {
     }
 
     Vector3 otherV = CompArch::grad(u, pos);
+    EXPECT_VEC3_NEAR(v, otherV, 1e-8);
 
+    v = Vector3{1, 0, 0};
+    for (size_t i = 0; i < 4; ++i) {
+        u[i] = dot(v, pos[i]);
+    }
+    otherV = CompArch::grad(u, pos);
+    EXPECT_VEC3_NEAR(v, otherV, 1e-8);
+
+    v = Vector3{0, 1, 0};
+    for (size_t i = 0; i < 4; ++i) {
+        u[i] = dot(v, pos[i]);
+    }
+    otherV = CompArch::grad(u, pos);
+    EXPECT_VEC3_NEAR(v, otherV, 1e-8);
+
+    v = Vector3{0, 0, 1};
+    for (size_t i = 0; i < 4; ++i) {
+        u[i] = dot(v, pos[i]);
+    }
+    otherV = CompArch::grad(u, pos);
     EXPECT_VEC3_NEAR(v, otherV, 1e-8);
 }
 

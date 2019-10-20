@@ -17,38 +17,6 @@ std::vector<double> TetMesh::distances(std::vector<double> start, double t) {
 
     polyscope::getTetMesh("tMesh")->addVertexScalarQuantity("u", u);
 
-    // std::vector<glm::vec3> faceGradU;
-    // std::vector<double> faceAreas;
-    // size_t printed = 0;
-    // for (auto f : faceList()) {
-    //     Vector3 a = vertices[f[0]].position;
-    //     Vector3 b = vertices[f[1]].position;
-    //     Vector3 c = vertices[f[2]].position;
-
-    //     Vector3 N   = cross(b - a, c - a);
-    //     double twoA = N.norm();
-    //     N /= twoA;
-
-    //     Vector3 fGrad{0, 0, 0};
-
-    //     fGrad += u[f[0]] * cross(N, c - b);
-    //     fGrad += u[f[1]] * cross(N, a - c);
-    //     fGrad += u[f[2]] * cross(N, b - a);
-    //     fGrad /= twoA;
-
-    //     fGrad = fGrad.normalize();
-
-    //     faceGradU.emplace_back(glm::vec3{fGrad.x, fGrad.y, fGrad.z});
-    //     faceAreas.emplace_back(twoA / 2);
-    //     if (printed < 10) {
-    //         cout << "fGrad: " << fGrad << endl;
-    //         ++printed;
-    //     }
-    // }
-    // polyscope::getTetMesh("tMesh")->addFaceVectorQuantity("grad u",
-    // faceGradU); polyscope::getTetMesh("tMesh")->addFaceScalarQuantity("area",
-    // faceAreas);
-
     Eigen::VectorXd divX = Eigen::VectorXd::Zero(u.size());
 
     std::vector<glm::vec3> tetXs;
@@ -60,7 +28,8 @@ std::vector<double> TetMesh::distances(std::vector<double> start, double t) {
         std::array<double, 4> tetU{u[t.verts[0]], u[t.verts[1]], u[t.verts[2]],
                                    u[t.verts[3]]};
         Vector3 tetGradU = grad(tetU, vertexPositions);
-        Vector3 X        = tetGradU.normalize();
+        // Vector3 X        = tetGradU;
+        Vector3 X = tetGradU.normalize();
 
         tetXs.emplace_back(glm::vec3{X.x, X.y, X.z});
 
@@ -87,27 +56,13 @@ std::vector<double> TetMesh::distances(std::vector<double> start, double t) {
         assert(distances[i] >= 0);
     }
 
-
-    // for (size_t i = 0; i < 8; ++i) {
-    //     cout << "start[" << i << "]: " << start[i] << endl;
-    // }
-    // for (size_t i = 0; i < 8; ++i) {
-    //     cout << "u[" << i << "]: " << u[i] << endl;
-    // }
-    // for (size_t i = 0; i < 8; ++i) {
-    //     cout << "divX[" << i << "]: " << divX[i] << endl;
-    // }
-    // for (size_t i = 0; i < 8; ++i) {
-    //     cout << "phi[" << i << "]: " << phi[i] << endl;
-    // }
-
     return distances;
 }
 
 // return the gradient of function u linearly interpolated over a tetrahedron
 // with vertices p[0], ... , p[3]
 Vector3 grad(std::array<double, 4> u, std::array<Vector3, 4> p) {
-    Vector3 gradU;
+    Vector3 gradU{0, 0, 0};
     double vol = dot(p[3] - p[0], cross(p[1] - p[0], p[2] - p[0])) / 6;
 
     // The gradient of a function which is 1 at vertex 3 and 0 everywhere else
@@ -186,7 +141,6 @@ Eigen::SparseMatrix<double> TetMesh::massMatrix() {
 
     for (size_t i = 0; i < vertexDualVolumes.size(); ++i) {
         tripletList.emplace_back(i, i, vertexDualVolumes[i]);
-        if (i < 20) cout << vertexDualVolumes[i] << endl;
     }
 
     M.setFromTriplets(tripletList.begin(), tripletList.end());
