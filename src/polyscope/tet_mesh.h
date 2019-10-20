@@ -21,6 +21,7 @@ namespace polyscope {
 
 // Forward declarations for quantities
 class TetVertexScalarQuantity;
+class TetFaceScalarQuantity;
 class TetVertexVectorQuantity;
 class TetFaceVectorQuantity;
 
@@ -47,6 +48,7 @@ class TetMesh : public QuantityStructure<TetMesh> {
     glm::vec3 faceCenter(size_t iF);
 
     std::vector<double> vertexVolumes;
+    std::vector<double> faceAreas;
     size_t nVertices();
     size_t nFaces();
 
@@ -119,6 +121,14 @@ class TetMesh : public QuantityStructure<TetMesh> {
             name, standardizeArray<double, T>(data), type);
     }
     template <class T>
+    TetFaceScalarQuantity*
+    addFaceScalarQuantity(std::string name, const T& data,
+                          DataType type = DataType::STANDARD) {
+        validateSize(data, faces.size(), "face scalar quantity " + name);
+        return addFaceScalarQuantityImpl(
+            name, standardizeArray<double, T>(data), type);
+    }
+    template <class T>
     TetVertexVectorQuantity*
     addVertexVectorQuantity(std::string name, const T& vectors,
                             VectorType vectorType = VectorType::STANDARD) {
@@ -140,6 +150,9 @@ class TetMesh : public QuantityStructure<TetMesh> {
     TetVertexScalarQuantity*
     addVertexScalarQuantityImpl(std::string name,
                                 const std::vector<double>& data, DataType type);
+    TetFaceScalarQuantity*
+    addFaceScalarQuantityImpl(std::string name, const std::vector<double>& data,
+                              DataType type);
     TetVertexVectorQuantity*
     addVertexVectorQuantityImpl(std::string name,
                                 const std::vector<glm::vec3>& vectors,

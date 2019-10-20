@@ -213,4 +213,64 @@ void TetVertexScalarQuantity::buildVertexInfoGUI(size_t vInd) {
     ImGui::NextColumn();
 }
 
+// ========================================================
+// ==========            Face Scalar             ==========
+// ========================================================
+
+TetFaceScalarQuantity::TetFaceScalarQuantity(std::string name,
+                                             std::vector<double> values_,
+                                             TetMesh& mesh_, DataType dataType_)
+    : TetScalarQuantity(name, mesh_, "face", dataType_),
+      values(std::move(values_))
+
+{
+    hist.updateColormap(cMap);
+    hist.buildHistogram(values, parent.faceAreas);
+
+    std::tie(dataRangeLow, dataRangeHigh) = robustMinMax(values, 1e-5);
+    resetVizRange();
+}
+
+void TetFaceScalarQuantity::createProgram() {
+    // Create the program to draw this quantity
+    program.reset(new gl::GLProgram(&gl::VERTCOLOR_SURFACE_VERT_SHADER,
+                                    &gl::VERTCOLOR_SURFACE_FRAG_SHADER,
+                                    gl::DrawMode::Triangles));
+
+    // Fill color buffers
+    parent.fillGeometryBuffers(*program);
+    fillColorBuffers(*program);
+
+    setMaterialForProgram(*program, "wax");
+}
+
+void TetFaceScalarQuantity::fillColorBuffers(gl::GLProgram& p) {
+    std::vector<double> colorval;
+    colorval.reserve(3 * parent.nFaces());
+
+    for (size_t iT = 0; iT < parent.tets.size(); iT++) {
+        if (glm::dot(parent.tetCenters[iT], parent.sliceNormal) >
+            parent.sliceDist)
+            continue;
+        for (size_t iF = 4 * iT; iF < 4 * iT + 4; ++iF) {
+            auto& face = parent.faces[iF];
+            colorval.push_back(values[iF]);
+            colorval.push_back(values[iF]);
+            colorval.push_back(values[iF]);
+        }
+    }
+
+    // Store data in buffers
+    p.setAttribute("a_colorval", colorval);
+    p.setTextureFromColormap("t_colormap", gl::getColorMap(cMap));
+}
+
+void TetFaceScalarQuantity::buildFaceInfoGUI(size_t fInd) {
+    ImGui::TextUnformatted(name.c_str());
+    ImGui::NextColumn();
+    ImGui::Text("%g", values[fInd]);
+    ImGui::NextColumn();
+}
+
+
 } // namespace polyscope

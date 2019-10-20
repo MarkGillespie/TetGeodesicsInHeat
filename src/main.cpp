@@ -92,6 +92,7 @@ int main(int argc, char** argv) {
                                         mesh->tetList());
     polyscope::getTetMesh("tMesh");
     psMesh->addFaceVectorQuantity("normal", faceNormals);
+    psMesh->addVertexScalarQuantity("volumes", mesh->vertexDualVolumes);
 
     // for (size_t i = 0; i < evecs.size(); ++i) {
     //     psMesh->addVertexScalarQuantity("evec " + std::to_string(i),

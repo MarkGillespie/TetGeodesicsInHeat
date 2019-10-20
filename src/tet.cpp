@@ -17,9 +17,37 @@ std::vector<double> TetMesh::distances(std::vector<double> start, double t) {
 
     polyscope::getTetMesh("tMesh")->addVertexScalarQuantity("u", u);
 
+    std::vector<glm::vec3> faceGradU;
+    std::vector<double> faceAreas;
+    size_t printed = 0;
+    for (auto f : faceList()) {
+        Vector3 a = vertices[f[0]].position;
+        Vector3 b = vertices[f[1]].position;
+        Vector3 c = vertices[f[2]].position;
+
+        Vector3 N   = cross(b - a, c - a);
+        double twoA = N.norm();
+        N /= twoA;
+
+        Vector3 fGrad;
+
+        fGrad += u[f[0]] * cross(N, c - b);
+        fGrad += u[f[1]] * cross(N, a - c);
+        fGrad += u[f[2]] * cross(N, b - a);
+
+        fGrad /= twoA;
+        faceGradU.emplace_back(glm::vec3{fGrad.x, fGrad.y, fGrad.z});
+        faceAreas.emplace_back(twoA / 2);
+        if (printed < 10) {
+            cout << "fGrad: " << fGrad << endl;
+            ++printed;
+        }
+    }
+    polyscope::getTetMesh("tMesh")->addFaceVectorQuantity("grad u", faceGradU);
+    polyscope::getTetMesh("tMesh")->addFaceScalarQuantity("area", faceAreas);
+
     Eigen::VectorXd divX = Eigen::VectorXd::Zero(u.size());
 
-    size_t printed = 0;
     for (Tet t : tets) {
         std::vector<Vector3> vertexPositions = layOutIntrinsicTet(t);
         std::vector<double> tetU{u[t.verts[0]], u[t.verts[1]], u[t.verts[2]],
@@ -30,11 +58,6 @@ std::vector<double> TetMesh::distances(std::vector<double> start, double t) {
         std::vector<double> tetDivX = div(X, vertexPositions);
         for (size_t i = 0; i < 4; ++i) {
             divX[t.verts[i]] += tetDivX[i];
-        }
-        if (printed < 10) {
-            // cout << "tetGradU: " << tetGradU << "\tX: " << X
-            //      << "\ttetDivX[0]: " << tetDivX[0] << endl;
-            ++printed;
         }
     }
 
@@ -51,9 +74,6 @@ std::vector<double> TetMesh::distances(std::vector<double> start, double t) {
     }
     for (size_t i = 1; i < distances.size(); ++i) {
         distances[i] -= minDist;
-        if (distances[i] < 0) {
-            cout << i << ", " << distances[i] << ", " << minDist << endl;
-        }
         assert(distances[i] >= 0);
     }
 
@@ -156,6 +176,7 @@ Eigen::SparseMatrix<double> TetMesh::massMatrix() {
 
     for (size_t i = 0; i < vertexDualVolumes.size(); ++i) {
         tripletList.emplace_back(i, i, vertexDualVolumes[i]);
+        if (i < 20) cout << vertexDualVolumes[i] << endl;
     }
 
     M.setFromTriplets(tripletList.begin(), tripletList.end());
@@ -443,6 +464,24 @@ void TetMesh::recomputeGeometry() {
         std::vector<double> tetWeights = cotanWeights(tets[iT]);
         partialEdgeCotanWeights.insert(partialEdgeCotanWeights.end(),
                                        tetWeights.begin(), tetWeights.end());
+    }
+
+
+    for (auto f : faceList()) {
+        Vector3 p0 = vertices[f[0]].position;
+        Vector3 p1 = vertices[f[1]].position;
+        Vector3 p2 = vertices[f[2]].position;
+
+        double u0 = scaleFactors[f[0]];
+        double u1 = scaleFactors[f[1]];
+        double u2 = scaleFactors[f[2]];
+
+        double e01 = norm(p0 - p1) * exp(0.5 * (u0 + u1));
+        double e02 = norm(p0 - p2) * exp(0.5 * (u0 + u2));
+        double e12 = norm(p1 - p2) * exp(0.5 * (u1 + u2));
+
+
+        faceAreas.emplace_back(area(e01, e02, e12));
     }
 }
 

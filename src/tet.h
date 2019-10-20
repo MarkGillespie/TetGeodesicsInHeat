@@ -72,6 +72,7 @@ class TetMesh {
 
     std::vector<double> tetVolumes;
     std::vector<double> vertexDualVolumes;
+    std::vector<double> faceAreas;
     std::vector<double> partialEdgeCotanWeights;
 
     Eigen::SparseMatrix<double> weakLaplacian();

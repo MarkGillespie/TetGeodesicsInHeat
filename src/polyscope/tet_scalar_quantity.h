@@ -68,4 +68,26 @@ class TetVertexScalarQuantity : public TetScalarQuantity {
     // === Members
     std::vector<double> values;
 };
+
+// ========================================================
+// ==========            Face Scalar             ==========
+// ========================================================
+
+class TetFaceScalarQuantity : public TetScalarQuantity {
+  public:
+    TetFaceScalarQuantity(std::string name, std::vector<double> values_,
+                          TetMesh& mesh_,
+                          DataType dataType_ = DataType::STANDARD);
+
+    virtual void createProgram() override;
+
+    void fillColorBuffers(gl::GLProgram& p);
+
+    void buildFaceInfoGUI(size_t fInd) override;
+
+    // === Members
+    std::vector<double> values;
+};
+
+
 } // namespace polyscope

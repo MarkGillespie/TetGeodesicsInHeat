@@ -32,6 +32,7 @@ void TetMesh::computeGeometryData() {
     const glm::vec3 zero{0., 0., 0.};
 
     // Reset face-valued
+    faceAreas.resize(faces.size());
     faceNormals.resize(faces.size());
 
     // Loop over faces to compute face-valued quantities
@@ -51,6 +52,7 @@ void TetMesh::computeGeometryData() {
         // Set face values
         fN              = glm::normalize(fN);
         faceNormals[iF] = fN;
+        faceAreas[iF]   = fA;
     }
 
     // Loop over tets to compute centers and vertex areas
@@ -504,6 +506,14 @@ TetVertexScalarQuantity* TetMesh::addVertexScalarQuantityImpl(
     std::string name, const std::vector<double>& data, DataType type) {
     TetVertexScalarQuantity* q =
         new TetVertexScalarQuantity(name, data, *this, type);
+    addQuantity(q);
+    return q;
+}
+
+TetFaceScalarQuantity* TetMesh::addFaceScalarQuantityImpl(
+    std::string name, const std::vector<double>& data, DataType type) {
+    TetFaceScalarQuantity* q =
+        new TetFaceScalarQuantity(name, data, *this, type);
     addQuantity(q);
     return q;
 }
