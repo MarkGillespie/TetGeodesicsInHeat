@@ -81,6 +81,7 @@ glm::vec3 TetMesh::faceCenter(size_t iF) {
 
 size_t TetMesh::nVertices() { return vertices.size(); }
 size_t TetMesh::nFaces() { return faces.size(); }
+size_t TetMesh::nTets() { return tets.size(); }
 
 void TetMesh::draw() {
     if (!enabled) {
@@ -540,6 +541,17 @@ TetMesh::addFaceVectorQuantityImpl(std::string name,
     return q;
 }
 
+TetTetVectorQuantity*
+TetMesh::addTetVectorQuantityImpl(std::string name,
+                                  const std::vector<glm::vec3>& vectors,
+                                  VectorType vectorType) {
+
+    TetTetVectorQuantity* q =
+        new TetTetVectorQuantity(name, vectors, *this, vectorType);
+    addQuantity(q);
+    return q;
+}
+
 TetMeshQuantity::TetMeshQuantity(std::string name, TetMesh& parentStructure,
                                  bool dominates)
     : Quantity<TetMesh>(name, parentStructure, dominates) {}
@@ -548,5 +560,6 @@ void TetMeshQuantity::buildVertexInfoGUI(size_t vInd) {}
 void TetMeshQuantity::buildFaceInfoGUI(size_t fInd) {}
 void TetMeshQuantity::buildEdgeInfoGUI(size_t eInd) {}
 void TetMeshQuantity::buildHalfedgeInfoGUI(size_t heInd) {}
+void TetMeshQuantity::buildTetInfoGUI(size_t heInd) {}
 
 } // namespace polyscope

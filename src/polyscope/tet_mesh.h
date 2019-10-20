@@ -24,6 +24,7 @@ class TetVertexScalarQuantity;
 class TetFaceScalarQuantity;
 class TetVertexVectorQuantity;
 class TetFaceVectorQuantity;
+class TetTetVectorQuantity;
 
 template <> // Specialize the quantity type
 struct QuantityTypeHelper<TetMesh> {
@@ -51,6 +52,7 @@ class TetMesh : public QuantityStructure<TetMesh> {
     std::vector<double> faceAreas;
     size_t nVertices();
     size_t nFaces();
+    size_t nTets();
 
     void computeGeometryData();
 
@@ -145,6 +147,14 @@ class TetMesh : public QuantityStructure<TetMesh> {
         return addFaceVectorQuantityImpl(
             name, standardizeVectorArray<glm::vec3, 3>(vectors), vectorType);
     }
+    template <class T>
+    TetTetVectorQuantity*
+    addTetVectorQuantity(std::string name, const T& vectors,
+                         VectorType vectorType = VectorType::STANDARD) {
+        validateSize(vectors, tets.size(), "tet vector quantity " + name);
+        return addTetVectorQuantityImpl(
+            name, standardizeVectorArray<glm::vec3, 3>(vectors), vectorType);
+    }
 
 
     TetVertexScalarQuantity*
@@ -161,6 +171,11 @@ class TetMesh : public QuantityStructure<TetMesh> {
     addFaceVectorQuantityImpl(std::string name,
                               const std::vector<glm::vec3>& vectors,
                               VectorType vectorType);
+
+    TetTetVectorQuantity*
+    addTetVectorQuantityImpl(std::string name,
+                             const std::vector<glm::vec3>& vectors,
+                             VectorType vectorType);
     // === Member variables ===
     static const std::string structureTypeName;
 };

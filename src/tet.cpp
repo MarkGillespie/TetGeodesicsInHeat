@@ -51,6 +51,7 @@ std::vector<double> TetMesh::distances(std::vector<double> start, double t) {
 
     Eigen::VectorXd divX = Eigen::VectorXd::Zero(u.size());
 
+    std::vector<glm::vec3> tetXs;
     for (Tet t : tets) {
         // std::array<Vector3, 4> vertexPositions = layOutIntrinsicTet(t);
         std::array<Vector3, 4> vertexPositions{
@@ -61,11 +62,14 @@ std::vector<double> TetMesh::distances(std::vector<double> start, double t) {
         Vector3 tetGradU = grad(tetU, vertexPositions);
         Vector3 X        = tetGradU.normalize();
 
+        tetXs.emplace_back(glm::vec3{X.x, X.y, X.z});
+
         std::array<double, 4> tetDivX = div(X, vertexPositions);
         for (size_t i = 0; i < 4; ++i) {
             divX[t.verts[i]] += tetDivX[i];
         }
     }
+    polyscope::getTetMesh("tMesh")->addTetVectorQuantity("X", tetXs);
 
     Eigen::VectorXd ones = Eigen::VectorXd::Ones(divX.size());
     divX -= divX.dot(ones) * ones;

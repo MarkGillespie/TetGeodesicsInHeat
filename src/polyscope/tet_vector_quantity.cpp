@@ -75,13 +75,10 @@ void TetVectorQuantity::prepareProgram() {
 
     // Fill buffers
     std::vector<glm::vec3> mappedVectors, mappedRoots;
-    for (size_t iT = 0; iT < parent.tets.size(); iT++) {
-        if (glm::dot(parent.tetCenters[iT], parent.sliceNormal) >
-            parent.sliceDist)
-            continue;
-        for (size_t iF = 4 * iT; iF < 4 * iT + 4; ++iF) {
-            mappedVectors.push_back(mapper.map(vectors[iF]));
-            mappedRoots.push_back(vectorRoots[iF]);
+    for (size_t iV = 0; iV < vectors.size(); ++iV) {
+        if (!hideWithMesh || !skipVector(iV)) {
+            mappedVectors.push_back(mapper.map(vectors[iV]));
+            mappedRoots.push_back(vectorRoots[iV]);
         }
     }
 
@@ -90,6 +87,23 @@ void TetVectorQuantity::prepareProgram() {
 
     setMaterialForProgram(*program, "wax");
 }
+
+bool TetVertexVectorQuantity::skipVector(size_t iV) {
+    glm::vec3 pos = parent.vertices[iV];
+    return glm::dot(pos, parent.sliceNormal) > parent.sliceDist;
+}
+
+bool TetFaceVectorQuantity::skipVector(size_t iF) {
+    size_t iT     = iF / 4;
+    glm::vec3 pos = parent.tetCenters[iT];
+    return glm::dot(pos, parent.sliceNormal) > parent.sliceDist;
+}
+
+bool TetTetVectorQuantity::skipVector(size_t iT) {
+    glm::vec3 pos = parent.tetCenters[iT];
+    return glm::dot(pos, parent.sliceNormal) > parent.sliceDist;
+}
+
 
 void TetVectorQuantity::buildCustomUI() {
     ImGui::SameLine();
@@ -117,6 +131,10 @@ void TetVectorQuantity::buildCustomUI() {
 
     { // Draw max and min magnitude
         ImGui::TextUnformatted(mapper.printBounds().c_str());
+    }
+
+    if (ImGui::Checkbox("hide with mesh", &hideWithMesh)) {
+        geometryChanged();
     }
 
     drawSubUI();
@@ -205,7 +223,6 @@ TetFaceVectorQuantity::TetFaceVectorQuantity(std::string name,
     vectorRoots.resize(parent.nFaces());
     for (size_t iF = 0; iF < parent.nFaces(); iF++) {
         auto& face           = parent.faces[iF];
-        size_t D             = face.size();
         glm::vec3 faceCenter = parent.faceCenter(iF);
         vectorRoots[iF]      = faceCenter;
     }
@@ -231,5 +248,43 @@ std::string TetFaceVectorQuantity::niceName() {
     return name + " (face vector)";
 }
 
+// ========================================================
+// ==========            Tet Vector             ==========
+// ========================================================
 
+TetTetVectorQuantity::TetTetVectorQuantity(std::string name,
+                                           std::vector<glm::vec3> vectors_,
+                                           TetMesh& mesh_,
+                                           VectorType vectorType_)
+    // TODO: fix enum to remove hack
+    : TetVectorQuantity(name, mesh_, MeshElement::CORNER, vectorType_),
+      vectorField(vectors_) {
+
+    // Copy the vectors
+    vectors = vectorField;
+    vectorRoots.resize(parent.nTets());
+    for (size_t iT = 0; iT < parent.nTets(); iT++) {
+        auto& tet           = parent.tets[iT];
+        glm::vec3 tetCenter = parent.tetCenters[iT];
+        vectorRoots[iT]     = tetCenter;
+    }
+
+    prepareVectorMapper();
+}
+
+void TetTetVectorQuantity::buildTetInfoGUI(size_t iT) {
+    ImGui::TextUnformatted(name.c_str());
+    ImGui::NextColumn();
+
+    std::stringstream buffer;
+    buffer << vectorField[iT];
+    ImGui::TextUnformatted(buffer.str().c_str());
+
+    ImGui::NextColumn();
+    ImGui::NextColumn();
+    ImGui::Text("magnitude: %g", glm::length(vectorField[iT]));
+    ImGui::NextColumn();
+}
+
+std::string TetTetVectorQuantity::niceName() { return name + " (tet vector)"; }
 } // namespace polyscope

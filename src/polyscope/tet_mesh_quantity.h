@@ -25,6 +25,7 @@ class TetMeshQuantity : public Quantity<TetMesh> {
     virtual void buildFaceInfoGUI(size_t fInd);
     virtual void buildEdgeInfoGUI(size_t eInd);
     virtual void buildHalfedgeInfoGUI(size_t heInd);
+    virtual void buildTetInfoGUI(size_t tInd);
 };
 
 } // namespace polyscope

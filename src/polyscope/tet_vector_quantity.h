@@ -24,6 +24,7 @@ class TetVectorQuantity : public TetMeshQuantity {
     virtual void draw() override;
     virtual void buildCustomUI() override;
     virtual void geometryChanged() override;
+    virtual bool skipVector(size_t iV) = 0;
 
     // Allow children to append to the UI
     virtual void drawSubUI();
@@ -41,6 +42,9 @@ class TetVectorQuantity : public TetMeshQuantity {
     // A ribbon viz that is appropriate for some fields
     std::unique_ptr<RibbonArtist> ribbonArtist;
     bool ribbonEnabled = false;
+
+    // Clip vector field when clipping tets
+    bool hideWithMesh = true;
 
     // The map that takes values to [0,1] for drawing
     AffineRemapper<glm::vec3> mapper;
@@ -68,6 +72,7 @@ class TetVertexVectorQuantity : public TetVectorQuantity {
     std::vector<glm::vec3> vectorField;
     virtual std::string niceName() override;
     virtual void buildVertexInfoGUI(size_t vInd) override;
+    virtual bool skipVector(size_t iV) override;
 };
 
 // ==== R3 vectors at faces
@@ -82,6 +87,22 @@ class TetFaceVectorQuantity : public TetVectorQuantity {
 
     virtual std::string niceName() override;
     virtual void buildFaceInfoGUI(size_t fInd) override;
+    virtual bool skipVector(size_t iV) override;
+};
+
+// ==== R3 vectors at tets
+
+class TetTetVectorQuantity : public TetVectorQuantity {
+  public:
+    TetTetVectorQuantity(std::string name, std::vector<glm::vec3> vectors_,
+                         TetMesh& mesh_,
+                         VectorType vectorType_ = VectorType::STANDARD);
+
+    std::vector<glm::vec3> vectorField;
+
+    virtual std::string niceName() override;
+    virtual void buildTetInfoGUI(size_t tInd) override;
+    virtual bool skipVector(size_t iV) override;
 };
 
 } // namespace polyscope
