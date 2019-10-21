@@ -26,6 +26,8 @@ class TetScalarQuantity : public TetMeshQuantity {
 
     virtual void writeToFile(std::string filename = "");
 
+    void setColorMap(gl::ColorMapID id);
+
     // === Members
     const DataType dataType;
 
@@ -35,9 +37,9 @@ class TetScalarQuantity : public TetMeshQuantity {
     float vizRangeLow, vizRangeHigh;
     float dataRangeHigh, dataRangeLow;
     Histogram hist;
+    gl::ColorMapID cMap;
 
     // UI internals
-    gl::ColorMapID cMap;
     const std::string definedOn;
     std::unique_ptr<gl::GLProgram> program;
 

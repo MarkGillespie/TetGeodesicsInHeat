@@ -31,6 +31,7 @@ void computeDistances(float diffusionTime) {
     std::vector<double> distances =
         mesh->distances(startingPoints, diffusionTime);
     auto* q = psMesh->addVertexScalarQuantity("distances", distances);
+    q->setColorMap(polyscope::gl::ColorMapID::STRIPES);
     // q->setEnabled(true);
 }
 

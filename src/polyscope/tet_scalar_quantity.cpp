@@ -36,6 +36,13 @@ void TetScalarQuantity::draw() {
 
     program->draw();
 }
+
+void TetScalarQuantity::setColorMap(gl::ColorMapID id) {
+    cMap = id;
+    program.reset();
+    hist.updateColormap(cMap);
+}
+
 void TetScalarQuantity::geometryChanged() { program.reset(); }
 
 void TetScalarQuantity::writeToFile(std::string filename) {
