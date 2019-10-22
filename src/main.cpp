@@ -15,6 +15,7 @@ using namespace CompArch;
 TetMesh* mesh;
 
 // Polyscope visualization handle, to quickly add data to the surface
+bool vis = true;
 polyscope::TetMesh* psMesh;
 
 float diffusionTime = 0.001;
@@ -26,7 +27,10 @@ void computeDistances(float diffusionTime) {
     if (diffusionTime < 0) diffusionTime = h;
     std::vector<double> distances =
         mesh->distances(startingPoints, diffusionTime);
-    auto* q = psMesh->addVertexScalarQuantity("distances", distances);
+
+    if (vis) {
+      auto* q = psMesh->addVertexScalarQuantity("distances", distances);
+    }
     // q->setEnabled(true);
 }
 
@@ -46,6 +50,7 @@ int main(int argc, char** argv) {
     args::ArgumentParser parser("Geometry program");
     args::Positional<std::string> inputFilename(
         parser, "mesh", "Tet mesh (ele file) to be processed.");
+    args::Flag noVis(parser, "noVis", "Set to disable visualization", {'n', "no_vis"});
 
     // Parse args
     try {
@@ -64,6 +69,9 @@ int main(int argc, char** argv) {
     if (inputFilename) {
         filename = args::get(inputFilename);
     }
+    if (noVis) {
+      vis = false;
+    }
 
     mesh = TetMesh::loadFromFile(filename);
 
@@ -78,29 +86,28 @@ int main(int argc, char** argv) {
         faceNormals.emplace_back(glm::vec3{N.x, N.y, N.z});
     }
 
-    // Initialize polyscope
-    polyscope::init();
+    if (vis) {
+      // Initialize polyscope
+      polyscope::init();
 
-    // Set the callback function
-    polyscope::state::userCallback = myCallback;
+      // Set the callback function
+      polyscope::state::userCallback = myCallback;
 
-    // Register the mesh with polyscope
-    psMesh = polyscope::registerTetMesh("tMesh", mesh->vertexPositions(),
-                                        mesh->tetList());
-    polyscope::getTetMesh("tMesh");
-    psMesh->addFaceVectorQuantity("normal", faceNormals);
-    psMesh->addVertexScalarQuantity("volumes", mesh->vertexDualVolumes);
+      // Register the mesh with polyscope
+      psMesh = polyscope::registerTetMesh("tMesh", mesh->vertexPositions(),
+                                          mesh->tetList());
+      polyscope::getTetMesh("tMesh");
+      psMesh->addFaceVectorQuantity("normal", faceNormals);
+      psMesh->addVertexScalarQuantity("volumes", mesh->vertexDualVolumes);
+
+    }
 
     computeDistances(-1);
 
-    // for (size_t i = 0; i < evecs.size(); ++i) {
-    //     psMesh->addVertexScalarQuantity("evec " + std::to_string(i),
-    //     evecs[i]);
-    // }
-
-
-    // Give control to the polyscope gui
-    polyscope::show();
+    if (vis) {
+      // Give control to the polyscope gui
+      polyscope::show();
+    }
 
     return EXIT_SUCCESS;
 }
