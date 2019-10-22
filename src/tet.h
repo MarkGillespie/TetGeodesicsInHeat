@@ -1,14 +1,14 @@
-#include "geometrycentral/utilities/vector3.h"
+#include "vector3.h"
 #include <fstream>
 #include <glm/glm.hpp>
 #include <iostream>
 #include <sstream>
 #include <vector>
+#include <cmath>
 
 #include <Eigen/SparseCholesky>
 #include <Eigen/SparseCore>
 
-using geometrycentral::Vector3;
 using std::cerr;
 using std::cout;
 using std::endl;

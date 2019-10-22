@@ -1,6 +1,7 @@
 #include "test_utils.h"
 #include "tet.h"
 
+#include <cmath>
 #include <random>
 
 class TetTest : public ::testing::Test {
@@ -65,12 +66,12 @@ TEST_F(TetTest, dihedralAngleFormulaTest) {
     Vector3 n031 = cross(v3 - v0, v1 - v0).normalize();
     Vector3 n213 = cross(v1 - v2, v3 - v2).normalize();
 
-    double alpha01 = PI - acos(dot(n012, n031));
-    double alpha02 = PI - acos(dot(n012, n023));
-    double alpha03 = PI - acos(dot(n023, n031));
-    double alpha12 = PI - acos(dot(n012, n213));
-    double alpha13 = PI - acos(dot(n031, n213));
-    double alpha23 = PI - acos(dot(n023, n213));
+    double alpha01 = M_PI - acos(dot(n012, n031));
+    double alpha02 = M_PI - acos(dot(n012, n023));
+    double alpha03 = M_PI - acos(dot(n023, n031));
+    double alpha12 = M_PI - acos(dot(n012, n213));
+    double alpha13 = M_PI - acos(dot(n031, n213));
+    double alpha23 = M_PI - acos(dot(n023, n213));
 
     std::array<double, 6> angles = tetMesh->dihedralAngles(t);
     EXPECT_FLOAT_EQ(alpha01, angles[0]);
@@ -161,8 +162,8 @@ TEST_F(TetTest, divSumsToZero) {
 TEST_F(TetTest, divSymmetric) {
     Vector3 X{0, 0, 1};
     std::array<Vector3, 4> p{
-        Vector3{1, 0, 0}, Vector3{cos(2 * PI / 3), sin(2 * PI / 3), 0},
-        Vector3{cos(2 * PI / 3), -sin(2 * PI / 3), 0}, Vector3{0, 0, 1}
+        Vector3{1, 0, 0}, Vector3{cos(2 * M_PI / 3), sin(2 * M_PI / 3), 0},
+        Vector3{cos(2 * M_PI / 3), -sin(2 * M_PI / 3), 0}, Vector3{0, 0, 1}
 
     };
 
@@ -197,8 +198,8 @@ double flux0(Vector3 X, Vector3 p0, Vector3 p1, Vector3 p2, Vector3 p3) {
 TEST_F(TetTest, div) {
     Vector3 X{0, 0, 1};
     std::array<Vector3, 4> p{
-        Vector3{1, 0, 0}, Vector3{cos(2 * PI / 3), sin(2 * PI / 3), 0},
-        Vector3{cos(2 * PI / 3), -sin(2 * PI / 3), 0}, Vector3{0, 0, 1}
+        Vector3{1, 0, 0}, Vector3{cos(2 * M_PI / 3), sin(2 * M_PI / 3), 0},
+        Vector3{cos(2 * M_PI / 3), -sin(2 * M_PI / 3), 0}, Vector3{0, 0, 1}
 
     };
 
