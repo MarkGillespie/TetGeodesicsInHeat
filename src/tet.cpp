@@ -11,7 +11,9 @@ std::vector<double> TetMesh::distances(std::vector<double> start, double t) {
     Eigen::SparseMatrix<double> M    = massMatrix();
     Eigen::SparseMatrix<double> flow = M + t * L;
     Eigen::SimplicialLDLT<Eigen::SparseMatrix<double>> solver;
+    Eigen::SimplicialLDLT<Eigen::SparseMatrix<double>> solver2;
     solver.compute(flow);
+    solver2.compute(L);
 
     Eigen::VectorXd u = solver.solve(u0);
 
@@ -42,7 +44,7 @@ std::vector<double> TetMesh::distances(std::vector<double> start, double t) {
 
     Eigen::VectorXd ones = Eigen::VectorXd::Ones(divX.size());
     divX -= divX.dot(ones) * ones;
-    Eigen::VectorXd phi = solver.solve(divX);
+    Eigen::VectorXd phi = solver2.solve(divX);
     polyscope::getTetMesh("tMesh")->addVertexScalarQuantity("divX", divX);
     polyscope::getTetMesh("tMesh")->addVertexScalarQuantity("phi", phi);
 
@@ -51,7 +53,7 @@ std::vector<double> TetMesh::distances(std::vector<double> start, double t) {
     for (size_t i = 1; i < distances.size(); ++i) {
         minDist = fmin(minDist, distances[i]);
     }
-    for (size_t i = 1; i < distances.size(); ++i) {
+    for (size_t i = 0; i < distances.size(); ++i) {
         distances[i] -= minDist;
         assert(distances[i] >= 0);
     }
