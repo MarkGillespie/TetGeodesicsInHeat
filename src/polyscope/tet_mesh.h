@@ -44,6 +44,7 @@ class TetMesh : public QuantityStructure<TetMesh> {
     std::vector<std::vector<size_t>> tets;
 
     std::vector<std::vector<size_t>> faces;
+    std::vector<std::vector<size_t>> localFaces;
     std::vector<glm::vec3> faceNormals;
     std::vector<glm::vec3> tetCenters;
     glm::vec3 faceCenter(size_t iF);
@@ -90,7 +91,14 @@ class TetMesh : public QuantityStructure<TetMesh> {
     void prepareWireframe();
     void preparePick();
     void geometryChanged(); // call whenever geometry changed
-    void refillBuffers();
+
+    void sliceTet( const std::array<glm::vec3,4>& p,         // in: tet vertices
+                   glm::vec3 N,                              // in: plane normal
+                   double c,                                 // in: plane offset
+                   std::vector<glm::vec3>& q,                // out: intersection points
+                   std::vector<std::pair<size_t,size_t>>& e, // out: intersection edges
+                   std::vector<double>& T );                 // out: intersection times
+
     void fillGeometryBuffers(gl::GLProgram& p);
     void fillGeometryBuffersWireframe(gl::GLProgram& p);
     void fillGeometryBuffersPick(gl::GLProgram& p);
@@ -104,6 +112,7 @@ class TetMesh : public QuantityStructure<TetMesh> {
     float sliceDist  = 1.0;
     float sliceTheta = 0.0;
     float slicePhi   = 0.0;
+    bool sliceThroughTets = false;
 
     // Picking-related
     // Order of indexing: vertices, faces

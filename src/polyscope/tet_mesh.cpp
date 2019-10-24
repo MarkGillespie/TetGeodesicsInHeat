@@ -15,6 +15,10 @@ TetMesh::TetMesh(std::string name_, std::vector<glm::vec3> vertices_,
 
     for (size_t i = 0; i < tets.size(); ++i) {
         std::vector<size_t> t = tets[i];
+        localFaces.emplace_back(std::vector<size_t>{0, 1, 2});
+        localFaces.emplace_back(std::vector<size_t>{0, 2, 3});
+        localFaces.emplace_back(std::vector<size_t>{0, 3, 1});
+        localFaces.emplace_back(std::vector<size_t>{2, 1, 3});
 
         faces.emplace_back(std::vector<size_t>{t[0], t[1], t[2]});
         faces.emplace_back(std::vector<size_t>{t[0], t[2], t[3]});
@@ -177,6 +181,39 @@ void TetMesh::preparePick() {
     fillGeometryBuffersPick(*pickProgram);
 }
 
+void TetMesh::sliceTet( const std::array<glm::vec3,4>& p, // in: tet vertices
+                        glm::vec3 N,                     // in: plane normal
+                        double c,                      // in: plane offset
+                        std::vector<glm::vec3>& q,        // out: intersection points
+                        std::vector<std::pair<size_t,size_t>>& e, // out: intersection edges
+                        std::vector<double>& T )       // out: intersection times
+{
+    std::array<double,4> d;
+    for( size_t i = 0; i < 4; i++ ) {
+      d[i] = dot(N,p[i]) - c;
+    }
+     size_t n = 0;
+     for( size_t i = 0; i < 4; i++ ) {
+       for( size_t j = i+1; j < 4; j++ ) {
+         if( d[i]*d[j] < 0. ) {
+           float t = (0-d[i])/(d[j]-d[i]);
+           q.push_back( (1.f-t)*p[i] + t*p[j] );
+           e.push_back( std::pair<int,int>(i,j) );
+           T.push_back( t );
+         }
+         n++;
+       }
+     }
+     if( q.size() == 4 &&
+           dot( cross( q[1]-q[0], q[2]-q[0] ),
+                cross( q[2]-q[0], q[3]-q[0] ) ) < 0. )
+     {
+       std::swap( q[2], q[3] );
+       std::swap( e[2], e[3] );
+       std::swap( T[2], T[3] );
+     }
+}
+
 void TetMesh::fillGeometryBuffersPick(gl::GLProgram& p) {
     // Get element indices
     size_t totalPickElements = nVertices() + nFaces();
@@ -280,33 +317,79 @@ void TetMesh::fillGeometryBuffers(gl::GLProgram& p) {
     }
 
     for (size_t iT = 0; iT < tets.size(); iT++) {
-        if (glm::dot(tetCenters[iT], sliceNormal) > sliceDist) continue;
-        for (size_t iF = 4 * iT; iF < 4 * iT + 4; ++iF) {
-            auto& face = faces[iF];
-            assert(face.size() == 3);
-            glm::vec3 faceN = faceNormals[iF];
 
-            // implicitly triangulate from root
-            size_t vA    = face[0];
-            size_t vB    = face[1];
-            size_t vC    = face[2];
-            glm::vec3 pA = vertices[vA];
-            glm::vec3 pB = vertices[vB];
-            glm::vec3 pC = vertices[vC];
+      std::vector<glm::vec3> tetPositions;
+      std::vector<std::vector<size_t>> tetFaces;
+      std::vector<glm::vec3> tetNormals;
 
-            positions.push_back(pA);
+      std::vector<size_t> t = tets[iT];
+      if (sliceThroughTets) {
+        std::array<glm::vec3, 4> p{vertices[t[0]],
+                                   vertices[t[1]],
+                                   vertices[t[2]],
+                                   vertices[t[3]]};
+        std::vector<glm::vec3> q;
+        std::vector<std::pair<size_t, size_t>> e;
+        std::vector<double> t;
+        sliceTet(p, sliceNormal, sliceDist, q, e, t);
+
+        if (q.size() == 0) {
+          if (glm::dot(p[0], sliceNormal) <= sliceDist) {
+            tetPositions = std::vector<glm::vec3>(p.begin(), p.end());
+            for (size_t iF = 4 * iT; iF < 4 * iT + 4; ++iF) {
+              tetFaces.emplace_back(localFaces[iF]);
+              tetNormals.emplace_back(faceNormals[iF]);
+            }
+          }
+        } else if (q.size() == 3) {
+          
+        } else if (q.size() == 4) {
+        } else {
+          std::cerr << "It should be impossible to have a plane intersect " << q.size()
+                    << " edges, but it happened." << std::endl;
+          exit(1);
+        }
+
+      } else {
+
+        if (glm::dot(tetCenters[iT], sliceNormal) <= sliceDist) {
+          tetPositions = std::vector<glm::vec3>{vertices[t[0]],
+                                                vertices[t[1]],
+                                                vertices[t[2]],
+                                                vertices[t[3]]};
+          for (size_t iF = 4 * iT; iF < 4 * iT + 4; ++iF) {
+            tetFaces.emplace_back(localFaces[iF]);
+            tetNormals.emplace_back(faceNormals[iF]);
+          }
+        }
+      }
+
+      for (size_t iF = 0; iF < tetFaces.size(); ++iF) {
+          auto& face = tetFaces[iF];
+          size_t D = face.size();
+          glm::vec3 faceN = tetNormals[iF];
+
+          // implicitly triangulate from root
+          glm::vec3 pRoot = tetPositions[face[0]];
+          for (size_t j = 1; (j + 1) < D; j++) {
+            glm::vec3 pB = tetPositions[face[j]];
+            glm::vec3 pC = tetPositions[face[j+1]];
+
+            positions.push_back(pRoot);
             positions.push_back(pB);
             positions.push_back(pC);
 
             normals.push_back(faceN);
             normals.push_back(faceN);
             normals.push_back(faceN);
+
             if (wantsBary) {
-                bcoord.push_back(glm::vec3{1., 0., 0.});
-                bcoord.push_back(glm::vec3{0., 1., 0.});
-                bcoord.push_back(glm::vec3{0., 0., 1.});
+              bcoord.push_back(glm::vec3{1., 0., 0.});
+              bcoord.push_back(glm::vec3{0., 1., 0.});
+              bcoord.push_back(glm::vec3{0., 0., 1.});
             }
-        }
+          }
+      }
     }
 
     // Store data in buffers
@@ -408,6 +491,9 @@ void TetMesh::buildCustomUI() {
             sliceNormal =
                 glm::vec3{cos(sliceTheta) * cos(slicePhi), sin(slicePhi),
                           sin(sliceTheta) * cos(slicePhi)};
+            geometryChanged();
+        }
+        if (ImGui::Checkbox("Slice through tets", &sliceThroughTets)) {
             geometryChanged();
         }
         ImGui::PopItemWidth();
