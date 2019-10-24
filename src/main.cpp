@@ -102,7 +102,7 @@ int main(int argc, char** argv) {
         psMesh->addVertexScalarQuantity("volumes", mesh->vertexDualVolumes);
     }
 
-    computeDistances(-1);
+    // computeDistances(-1);
 
     if (vis) {
         // Give control to the polyscope gui

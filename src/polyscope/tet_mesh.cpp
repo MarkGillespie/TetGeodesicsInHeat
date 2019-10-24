@@ -16,11 +16,18 @@ TetMesh::TetMesh(std::string name_, std::vector<glm::vec3> vertices_,
     for (size_t i = 0; i < tets.size(); ++i) {
         std::vector<size_t> t = tets[i];
 
-        faces.emplace_back(std::vector<size_t>{t[0], t[1], t[2]});
+        // In order OppV0, OppV1, OppV2, OppV3
+        localFaces.emplace_back(std::array<size_t, 3>{2, 1, 3});
+        localFaces.emplace_back(std::array<size_t, 3>{0, 2, 3});
+        localFaces.emplace_back(std::array<size_t, 3>{0, 3, 1});
+        localFaces.emplace_back(std::array<size_t, 3>{0, 1, 2});
+
+        faces.emplace_back(std::vector<size_t>{t[2], t[1], t[3]});
         faces.emplace_back(std::vector<size_t>{t[0], t[2], t[3]});
         faces.emplace_back(std::vector<size_t>{t[0], t[3], t[1]});
-        faces.emplace_back(std::vector<size_t>{t[2], t[1], t[3]});
+        faces.emplace_back(std::vector<size_t>{t[0], t[1], t[2]});
     }
+
     computeGeometryData();
 
     baseColor = getNextUniqueColor();
@@ -101,8 +108,9 @@ void TetMesh::draw() {
     }
 
     // Draw the quantities
+    // TODO: draw quantities
     for (auto& x : quantities) {
-        x.second->draw();
+        // x.second->draw();
     }
 
     // Draw the wireframe
@@ -150,6 +158,8 @@ void TetMesh::prepare() {
                                     &gl::PLAIN_SURFACE_FRAG_SHADER,
                                     gl::DrawMode::Triangles));
 
+    if (!bufferGeometryValid) precomputeBufferGeometry();
+
     // Populate draw buffers
     fillGeometryBuffers(*program);
 
@@ -160,6 +170,8 @@ void TetMesh::prepareWireframe() {
     wireframeProgram.reset(new gl::GLProgram(&gl::SURFACE_WIREFRAME_VERT_SHADER,
                                              &gl::SURFACE_WIREFRAME_FRAG_SHADER,
                                              gl::DrawMode::Triangles));
+
+    if (!bufferGeometryValid) precomputeBufferGeometry();
 
     // Populate draw buffers
     fillGeometryBuffersWireframe(*wireframeProgram);
@@ -174,7 +186,357 @@ void TetMesh::preparePick() {
                                         &gl::PICK_SURFACE_FRAG_SHADER,
                                         gl::DrawMode::Triangles));
 
+    if (!bufferGeometryValid) precomputeBufferGeometry();
     fillGeometryBuffersPick(*pickProgram);
+}
+
+void TetMesh::precomputeBufferGeometry() {
+    bufferVertices.clear();
+    bufferFaces.clear();
+    bufferFaceNormals.clear();
+    bufferVertices.reserve(3 * faces.size());
+    bufferFaces.reserve(3 * faces.size());
+    bufferFaceNormals.reserve(3 * faces.size());
+
+    if (sliceThroughTets) {
+        for (size_t iT = 0; iT < tets.size(); ++iT) {
+            std::array<double, 4> fn;
+            for (size_t iV = 0; iV < 4; ++iV) {
+                fn[iV] = sliceDist - dot(vertices[tets[iT][iV]], sliceNormal);
+            }
+            sliceTet(iT, fn, bufferVertices, bufferFaces, bufferFaceNormals);
+        }
+    } else {
+        for (size_t iT = 0; iT < tets.size(); ++iT) {
+            if (glm::dot(tetCenters[iT], sliceNormal) <= sliceDist) {
+                bufferVertices = vertices;
+                for (size_t iF = 4 * iT; iF < 4 * iT + 4; ++iF) {
+                    bufferFaces.emplace_back(faces[iF]);
+                    bufferFaceNormals.emplace_back(faceNormals[iF]);
+                }
+            }
+        }
+    }
+}
+
+// if v does not contain i, return false
+// if v contains i, return true, and cyclically shift v so that i is at the end
+bool contains(std::array<size_t, 3>& v, size_t i) {
+    if (v[0] == i) {
+        v[0] = v[1];
+        v[1] = v[2];
+        v[2] = i;
+        return true;
+    } else if (v[1] == i) {
+        v[1] = v[0];
+        v[0] = v[2];
+        v[2] = i;
+        return true;
+    } else if (v[2] == i) {
+        return true;
+    }
+    return false;
+}
+
+// Computes the region inside of tet iT where the function fn is nonnegative
+// (assuming you linearly interpolate fn inside of the tet)
+void TetMesh::sliceTet(size_t iT, std::array<double, 4> fn,
+                       std::vector<glm::vec3>& vs,
+                       std::vector<std::vector<size_t>>& fs,
+                       std::vector<glm::vec3>& Ns) {
+    std::array<std::tuple<double, size_t>, 4> corners;
+    for (size_t i = 0; i < 4; ++i) corners[i] = std::make_tuple(fn[i], i);
+
+    // Now all of the negative vertices are at the beginning and all of the
+    // positive vertices are at the end
+    std::sort(corners.begin(), corners.end());
+
+    std::array<size_t, 4> s2l;
+    for (size_t i = 0; i < 4; ++i) s2l[i] = std::get<1>(corners[i]);
+
+    auto intersect = [&](size_t a, size_t b) {
+        float t = (0 - fn[a]) / (fn[b] - fn[a]);
+        return (1.f - t) * vertices[tets[iT][a]] + t * vertices[tets[iT][b]];
+    };
+
+    // TODO: write this better using the observation that faces are opposite
+    // vertices (and thus you can tell which normal to use just from the
+    // vertices contained in the face)
+    size_t baseV = vs.size();
+    if (fn[s2l[3]] < 0) {
+        // Negative everywhere - return nothing
+    } else if (fn[s2l[2]] < 0) {
+        // Negative everywhere except vertex 3. Return a pyramid with tip at
+        // vertex 3
+
+        size_t real  = s2l[3];
+        size_t imag1 = s2l[0];
+        size_t imag2 = s2l[1];
+        size_t imag3 = s2l[2];
+
+        vs.emplace_back(vertices[tets[iT][real]]);
+        vs.emplace_back(intersect(real, imag1));
+        vs.emplace_back(intersect(real, imag2));
+        vs.emplace_back(intersect(real, imag3));
+
+        // Real 1, Imag 1, Imag 2 (missing imag 3)
+        fs.emplace_back(
+            (std::initializer_list<size_t>){baseV, baseV + 1, baseV + 2});
+        Ns.emplace_back(faceNormals[tets[iT][imag3]]);
+
+        // Real 1, Imag 1, Imag 3 (missing imag 2)
+        fs.emplace_back(
+            (std::initializer_list<size_t>){baseV, baseV + 1, baseV + 3});
+        Ns.emplace_back(faceNormals[tets[iT][imag2]]);
+
+        // Real 1, Imag 2, Imag 3 (missing Imag 1)
+        fs.emplace_back(
+            (std::initializer_list<size_t>){baseV, baseV + 2, baseV + 3});
+        Ns.emplace_back(faceNormals[tets[iT][imag1]]);
+
+        // All Imag (missing real)
+        fs.emplace_back(
+            (std::initializer_list<size_t>){baseV + 1, baseV + 2, baseV + 3});
+        // Normal vector should point away from barycenter
+        glm::vec3 v12       = vs[baseV + 2] - vs[baseV + 1];
+        glm::vec3 v13       = vs[baseV + 3] - vs[baseV + 1];
+        glm::vec3 newNormal = glm::cross(v12, v13);
+        glm::vec3 tetBarycenter =
+            0.25f * (vs[baseV] + vs[baseV + 1] + vs[baseV + 2] + vs[baseV + 3]);
+        glm::vec3 faceBarycenter =
+            1.f / 3.f * (vs[baseV + 1] + vs[baseV + 2] + vs[baseV + 3]);
+        if (glm::dot(newNormal, faceBarycenter - tetBarycenter) < 0) {
+            newNormal *= -1;
+        }
+        Ns.emplace_back(glm::normalize(newNormal));
+
+    } else if (fn[s2l[1]] < 0) {
+        // Cut in half
+        size_t real1 = s2l[2];
+        size_t real2 = s2l[3];
+        size_t imag1 = s2l[0];
+        size_t imag2 = s2l[1];
+
+        vs.emplace_back(vertices[tets[iT][real1]]);
+        vs.emplace_back(intersect(real1, imag1));
+        vs.emplace_back(intersect(real1, imag2));
+        vs.emplace_back(vertices[tets[iT][real2]]);
+        vs.emplace_back(intersect(real2, imag1));
+        vs.emplace_back(intersect(real2, imag2));
+
+        // Real 1, Real 2, Imag 1 (missing imag 2)
+        fs.emplace_back((std::initializer_list<size_t>){baseV, baseV + 3,
+                                                        baseV + 4, baseV + 1});
+        Ns.emplace_back(faceNormals[tets[iT][imag2]]);
+
+        // Real 1, Real 2, Imag 2 (missing imag 1)
+        fs.emplace_back((std::initializer_list<size_t>){baseV, baseV + 3,
+                                                        baseV + 5, baseV + 2});
+        Ns.emplace_back(faceNormals[tets[iT][imag1]]);
+
+        // Real 1, Imag 1, Imag 2 (missing Real 2)
+        fs.emplace_back(
+            (std::initializer_list<size_t>){baseV, baseV + 1, baseV + 2});
+        Ns.emplace_back(faceNormals[tets[iT][real2]]);
+
+        // Real 2, Imag 1, Imag 2 (missing Real 1)
+        fs.emplace_back(
+            (std::initializer_list<size_t>){baseV + 3, baseV + 4, baseV + 5});
+        Ns.emplace_back(faceNormals[tets[iT][real1]]);
+
+        // All imag (average real normals?)
+        fs.emplace_back(
+            std::vector<size_t>{baseV + 1, baseV + 2, baseV + 5, baseV + 4});
+        glm::vec3 avgRealNormal = 0.5f * (faceNormals[tets[iT][real1]] +
+                                          faceNormals[tets[iT][real2]]);
+
+        // Normal vector should point away from barycenter
+        glm::vec3 v12       = vs[baseV + 2] - vs[baseV + 1];
+        glm::vec3 v15       = vs[baseV + 5] - vs[baseV + 1];
+        glm::vec3 newNormal = glm::cross(v12, v15);
+        glm::vec3 tetBarycenter =
+            1.f / 6.f *
+            (vs[baseV] + vs[baseV + 1] + vs[baseV + 2] + vs[baseV + 3] +
+             vs[baseV + 4] + vs[baseV + 5]);
+        glm::vec3 faceBarycenter =
+            1.f / 4.f *
+            (vs[baseV + 1] + vs[baseV + 2] + vs[baseV + 4] + vs[baseV + 5]);
+        if (glm::dot(newNormal, faceBarycenter - tetBarycenter) < 0) {
+            newNormal *= -1;
+        }
+        Ns.emplace_back(glm::normalize(newNormal));
+
+    } else if (fn[s2l[0]] < 0) {
+        // Positive everywhere except vertex 0. Return the complement of a
+        // pyramid at vertex 0
+        size_t real1 = s2l[1];
+        size_t real2 = s2l[2];
+        size_t real3 = s2l[3];
+        size_t imag  = s2l[0];
+
+        vs.emplace_back(vertices[tets[iT][real1]]);
+        vs.emplace_back(vertices[tets[iT][real2]]);
+        vs.emplace_back(vertices[tets[iT][real3]]);
+        vs.emplace_back(intersect(real1, imag));
+        vs.emplace_back(intersect(real2, imag));
+        vs.emplace_back(intersect(real3, imag));
+
+        // Real 1, Real 2, Imag (missing Real 3)
+        fs.emplace_back((std::initializer_list<size_t>){baseV, baseV + 1,
+                                                        baseV + 4, baseV + 3});
+        Ns.emplace_back(faceNormals[tets[iT][real3]]);
+        // Real 1, Real 3, Imag (missing Real 2)
+        fs.emplace_back((std::initializer_list<size_t>){baseV, baseV + 2,
+                                                        baseV + 5, baseV + 3});
+        Ns.emplace_back(faceNormals[tets[iT][real2]]);
+        // Real 2, Real 3, Imag (missing Real 1)
+        fs.emplace_back((std::initializer_list<size_t>){baseV + 1, baseV + 2,
+                                                        baseV + 5, baseV + 4});
+        Ns.emplace_back(faceNormals[tets[iT][real1]]);
+        // Real 1, Real 2, Real 3, (missing Imag)
+        fs.emplace_back(
+            (std::initializer_list<size_t>){baseV, baseV + 1, baseV + 2});
+        Ns.emplace_back(faceNormals[tets[iT][imag]]);
+        // Vertex cap (opposite face missing imag)
+        fs.emplace_back(
+            (std::initializer_list<size_t>){baseV + 3, baseV + 4, baseV + 5});
+
+        // Normal vector should point away from barycenter
+        glm::vec3 v34       = vs[baseV + 5] - vs[baseV + 3];
+        glm::vec3 v35       = vs[baseV + 4] - vs[baseV + 3];
+        glm::vec3 newNormal = glm::cross(v34, v35);
+        glm::vec3 tetBarycenter =
+            1.f / 6.f *
+            (vs[baseV] + vs[baseV + 1] + vs[baseV + 2] + vs[baseV + 3] +
+             vs[baseV + 4] + vs[baseV + 5]);
+        glm::vec3 faceBarycenter =
+            1.f / 3.f * (vs[baseV + 3] + vs[baseV + 4] + vs[baseV + 5]);
+        if (glm::dot(newNormal, faceBarycenter - tetBarycenter) < 0) {
+            newNormal *= -1;
+        }
+        Ns.emplace_back(glm::normalize(newNormal));
+    } else {
+        // Positive everywhere - return everything
+        for (size_t iV : tets[iT]) {
+            vs.emplace_back(vertices[iV]);
+        }
+        for (size_t iF = 4 * iT; iF < 4 * iT + 4; ++iF) {
+            std::vector<size_t> f;
+            for (size_t iV : localFaces[iF]) {
+                f.emplace_back(iV + baseV);
+            }
+            fs.emplace_back(f);
+            Ns.emplace_back(faceNormals[iF]);
+        }
+    }
+}
+
+void TetMesh::fillGeometryBuffers(gl::GLProgram& p) {
+    std::vector<glm::vec3> positions;
+    std::vector<glm::vec3> normals;
+    std::vector<glm::vec3> bcoord;
+
+    bool wantsBary = p.hasAttribute("a_barycoord");
+
+    positions.reserve(3 * faces.size());
+    normals.reserve(3 * faces.size());
+    if (wantsBary) {
+        bcoord.reserve(3 * faces.size());
+    }
+
+    for (size_t iF = 0; iF < bufferFaces.size(); iF++) {
+        auto& face      = bufferFaces[iF];
+        size_t D        = face.size();
+        glm::vec3 faceN = bufferFaceNormals[iF];
+
+        // implicitly triangulate from root
+        size_t vRoot    = face[0];
+        glm::vec3 pRoot = bufferVertices[vRoot];
+        for (size_t j = 1; (j + 1) < D; j++) {
+            size_t vB    = face[j];
+            glm::vec3 pB = bufferVertices[vB];
+            size_t vC    = face[(j + 1) % D];
+            glm::vec3 pC = bufferVertices[vC];
+
+            positions.push_back(pRoot);
+            positions.push_back(pB);
+            positions.push_back(pC);
+
+            normals.push_back(faceN);
+            normals.push_back(faceN);
+            normals.push_back(faceN);
+
+            if (wantsBary) {
+                bcoord.push_back(glm::vec3{1., 0., 0.});
+                bcoord.push_back(glm::vec3{0., 1., 0.});
+                bcoord.push_back(glm::vec3{0., 0., 1.});
+            }
+        }
+    }
+
+    // Store data in buffers
+    p.setAttribute("a_position", positions);
+    p.setAttribute("a_normal", normals);
+    if (wantsBary) {
+        p.setAttribute("a_barycoord", bcoord);
+    }
+}
+
+void TetMesh::fillGeometryBuffersWireframe(gl::GLProgram& p) {
+    std::vector<glm::vec3> positions;
+    std::vector<glm::vec3> normals;
+    std::vector<glm::vec3> bcoord;
+    std::vector<glm::vec3> edgeReal;
+
+    positions.reserve(3 * faces.size());
+    normals.reserve(3 * faces.size());
+    bcoord.reserve(3 * faces.size());
+    edgeReal.reserve(3 * faces.size());
+
+    for (size_t iF = 0; iF < bufferFaces.size(); iF++) {
+        auto& face      = bufferFaces[iF];
+        size_t D        = face.size();
+        glm::vec3 faceN = bufferFaceNormals[iF];
+
+        // implicitly triangulate from root
+        size_t vRoot    = face[0];
+        glm::vec3 pRoot = bufferVertices[vRoot];
+        for (size_t j = 1; (j + 1) < D; j++) {
+            size_t vB    = face[j];
+            glm::vec3 pB = bufferVertices[vB];
+            size_t vC    = face[(j + 1) % D];
+            glm::vec3 pC = bufferVertices[vC];
+
+            positions.push_back(pRoot);
+            positions.push_back(pB);
+            positions.push_back(pC);
+
+            normals.push_back(faceN);
+            normals.push_back(faceN);
+            normals.push_back(faceN);
+
+            bcoord.push_back(glm::vec3{1., 0., 0.});
+            bcoord.push_back(glm::vec3{0., 1., 0.});
+            bcoord.push_back(glm::vec3{0., 0., 1.});
+
+            glm::vec3 edgeRealV{0., 1., 0.};
+            if (j == 1) {
+                edgeRealV.x = 1.;
+            }
+            if (j + 2 == D) {
+                edgeRealV.z = 1.;
+            }
+            edgeReal.push_back(edgeRealV);
+            edgeReal.push_back(edgeRealV);
+            edgeReal.push_back(edgeRealV);
+        }
+    }
+
+    // Store data in buffers
+    p.setAttribute("a_position", positions);
+    p.setAttribute("a_normal", normals);
+    p.setAttribute("a_barycoord", bcoord);
+    p.setAttribute("a_edgeReal", edgeReal);
 }
 
 void TetMesh::fillGeometryBuffersPick(gl::GLProgram& p) {
@@ -208,23 +570,26 @@ void TetMesh::fillGeometryBuffersPick(gl::GLProgram& p) {
     // for now, we just color edges and halfedges their respective face's colors
     // TODO: figure out edges
 
+    // TODO: fix indices - everything got broken by clipping
     // Build all quantities in each face
-    for (size_t iT = 0; iT < tets.size(); iT++) {
-        if (glm::dot(tetCenters[iT], sliceNormal) > sliceDist) continue;
-        for (size_t iF = 4 * iT; iF < 4 * iT + 4; ++iF) {
-            auto& face = faces[iF];
+    for (size_t iF = 0; iF < bufferFaces.size(); iF++) {
+        auto& face      = bufferFaces[iF];
+        size_t D        = face.size();
+        glm::vec3 faceN = bufferFaceNormals[iF];
 
-            size_t vA    = face[0];
-            glm::vec3 pA = vertices[vA];
-            size_t vB    = face[1];
-            glm::vec3 pB = vertices[vB];
-            size_t vC    = face[2];
-            glm::vec3 pC = vertices[vC];
+        // implicitly triangulate from root
+        size_t vRoot    = face[0];
+        glm::vec3 pRoot = bufferVertices[vRoot];
+        for (size_t j = 1; (j + 1) < D; j++) {
+            size_t vB    = face[j];
+            glm::vec3 pB = bufferVertices[vB];
+            size_t vC    = face[(j + 1) % D];
+            glm::vec3 pC = bufferVertices[vC];
 
             glm::vec3 fColor = pick::indToVec(iF + faceGlobalPickIndStart);
-            std::array<size_t, 3> vertexInds = {vA, vB, vC};
+            std::array<size_t, 3> vertexInds = {vRoot, vB, vC};
 
-            positions.push_back(pA);
+            positions.push_back(pRoot);
             positions.push_back(pB);
             positions.push_back(pC);
 
@@ -266,110 +631,6 @@ void TetMesh::fillGeometryBuffersPick(gl::GLProgram& p) {
     pickProgram->setAttribute("a_faceColor", faceColor);
 }
 
-void TetMesh::fillGeometryBuffers(gl::GLProgram& p) {
-    std::vector<glm::vec3> positions;
-    std::vector<glm::vec3> normals;
-    std::vector<glm::vec3> bcoord;
-
-    bool wantsBary = p.hasAttribute("a_barycoord");
-
-    positions.reserve(3 * faces.size());
-    normals.reserve(3 * faces.size());
-    if (wantsBary) {
-        bcoord.reserve(3 * faces.size());
-    }
-
-    for (size_t iT = 0; iT < tets.size(); iT++) {
-        if (glm::dot(tetCenters[iT], sliceNormal) > sliceDist) continue;
-        for (size_t iF = 4 * iT; iF < 4 * iT + 4; ++iF) {
-            auto& face = faces[iF];
-            assert(face.size() == 3);
-            glm::vec3 faceN = faceNormals[iF];
-
-            // implicitly triangulate from root
-            size_t vA    = face[0];
-            size_t vB    = face[1];
-            size_t vC    = face[2];
-            glm::vec3 pA = vertices[vA];
-            glm::vec3 pB = vertices[vB];
-            glm::vec3 pC = vertices[vC];
-
-            positions.push_back(pA);
-            positions.push_back(pB);
-            positions.push_back(pC);
-
-            normals.push_back(faceN);
-            normals.push_back(faceN);
-            normals.push_back(faceN);
-            if (wantsBary) {
-                bcoord.push_back(glm::vec3{1., 0., 0.});
-                bcoord.push_back(glm::vec3{0., 1., 0.});
-                bcoord.push_back(glm::vec3{0., 0., 1.});
-            }
-        }
-    }
-
-    // Store data in buffers
-    p.setAttribute("a_position", positions);
-    p.setAttribute("a_normal", normals);
-    if (wantsBary) {
-        p.setAttribute("a_barycoord", bcoord);
-    }
-}
-
-void TetMesh::fillGeometryBuffersWireframe(gl::GLProgram& p) {
-    std::vector<glm::vec3> positions;
-    std::vector<glm::vec3> normals;
-    std::vector<glm::vec3> bcoord;
-    std::vector<glm::vec3> edgeReal;
-
-    positions.reserve(3 * faces.size());
-    normals.reserve(3 * faces.size());
-    bcoord.reserve(3 * faces.size());
-    edgeReal.reserve(3 * faces.size());
-
-    for (size_t iT = 0; iT < tets.size(); iT++) {
-        if (glm::dot(tetCenters[iT], sliceNormal) > sliceDist) continue;
-        for (size_t iF = 4 * iT; iF < 4 * iT + 4; ++iF) {
-            auto& face      = faces[iF];
-            size_t D        = face.size();
-            glm::vec3 faceN = faceNormals[iF];
-
-            // implicitly triangulate from root
-            size_t vA    = face[0];
-            glm::vec3 pA = vertices[vA];
-            size_t vB    = face[1];
-            glm::vec3 pB = vertices[vB];
-            size_t vC    = face[2];
-            glm::vec3 pC = vertices[vC];
-
-            positions.push_back(pA);
-            positions.push_back(pB);
-            positions.push_back(pC);
-
-            normals.push_back(faceN);
-            normals.push_back(faceN);
-            normals.push_back(faceN);
-
-            bcoord.push_back(glm::vec3{1., 0., 0.});
-            bcoord.push_back(glm::vec3{0., 1., 0.});
-            bcoord.push_back(glm::vec3{0., 0., 1.});
-
-            glm::vec3 edgeRealV{1., 1., 1.};
-            edgeReal.push_back(edgeRealV);
-            edgeReal.push_back(edgeRealV);
-            edgeReal.push_back(edgeRealV);
-        }
-    }
-
-
-    // Store data in buffers
-    p.setAttribute("a_position", positions);
-    p.setAttribute("a_normal", normals);
-    p.setAttribute("a_barycoord", bcoord);
-    p.setAttribute("a_edgeReal", edgeReal);
-}
-
 // == Build the ImGUI ui elements
 void TetMesh::buildCustomUI() {
     // Print stats
@@ -408,6 +669,9 @@ void TetMesh::buildCustomUI() {
             sliceNormal =
                 glm::vec3{cos(sliceTheta) * cos(slicePhi), sin(slicePhi),
                           sin(sliceTheta) * cos(slicePhi)};
+            geometryChanged();
+        }
+        if (ImGui::Checkbox("Slice Through Tets", &sliceThroughTets)) {
             geometryChanged();
         }
         ImGui::PopItemWidth();
@@ -492,6 +756,7 @@ double TetMesh::lengthScale() {
 
 
 void TetMesh::geometryChanged() {
+    bufferGeometryValid = false;
     program.reset();
     wireframeProgram.reset();
     pickProgram.reset();
