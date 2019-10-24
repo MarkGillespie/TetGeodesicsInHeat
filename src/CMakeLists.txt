@@ -5,6 +5,8 @@ if (CMAKE_BINARY_DIR STREQUAL CMAKE_SOURCE_DIR)
     message(FATAL_ERROR "Source and build directories cannot be the same. Go use the /build directory.")
 endif()
 
+find_package (Eigen3 3.3 REQUIRED NO_MODULE)
+
 add_library(
    polyscopeTetMesh
    polyscope/tet_mesh.cpp
@@ -21,15 +23,17 @@ add_library(
     tetMesh
     tet.h
     tet.cpp
+    vector3.h
+    vector3.ipp
 )
-target_link_libraries(tetMesh geometry-central polyscope polyscopeTetMesh)
+target_link_libraries(tetMesh polyscope polyscopeTetMesh Eigen3::Eigen)
 
 add_executable(
   run
   main.cpp
 )
 target_include_directories(run PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/../include")
-target_link_libraries(run polyscope geometry-central tetMesh)
+target_link_libraries(run polyscope tetMesh)
 
 option(PACKAGE_TESTS "Build the tests" ON)
 

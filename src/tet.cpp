@@ -1,8 +1,5 @@
 #include "tet.h"
 
-#include "polyscope/polyscope.h"
-#include "polyscope/tet_mesh.h"
-
 namespace CompArch {
 
 std::vector<double> TetMesh::distances(std::vector<double> start, double t) {
@@ -11,24 +8,20 @@ std::vector<double> TetMesh::distances(std::vector<double> start, double t) {
     Eigen::SparseMatrix<double> M    = massMatrix();
     Eigen::SparseMatrix<double> flow = M + t * L;
     Eigen::SimplicialLDLT<Eigen::SparseMatrix<double>> solver;
+    Eigen::SimplicialLDLT<Eigen::SparseMatrix<double>> solver2;
     solver.compute(flow);
+    solver2.compute(L);
 
     Eigen::VectorXd u = solver.solve(u0);
-
-    polyscope::getTetMesh("tMesh")->addVertexScalarQuantity("u", u);
 
     Eigen::VectorXd divX = Eigen::VectorXd::Zero(u.size());
 
     std::vector<glm::vec3> tetXs;
     for (Tet t : tets) {
-        // std::array<Vector3, 4> vertexPositions = layOutIntrinsicTet(t);
-        std::array<Vector3, 4> vertexPositions{
-            vertices[t.verts[0]].position, vertices[t.verts[1]].position,
-            vertices[t.verts[2]].position, vertices[t.verts[3]].position};
+        std::array<Vector3, 4> vertexPositions = layOutIntrinsicTet(t);
         std::array<double, 4> tetU{u[t.verts[0]], u[t.verts[1]], u[t.verts[2]],
                                    u[t.verts[3]]};
         Vector3 tetGradU = grad(tetU, vertexPositions);
-        // Vector3 X        = tetGradU;
         Vector3 X = tetGradU.normalize();
 
         tetXs.emplace_back(glm::vec3{X.x, X.y, X.z});
@@ -38,20 +31,17 @@ std::vector<double> TetMesh::distances(std::vector<double> start, double t) {
             divX[t.verts[i]] += tetDivX[i];
         }
     }
-    polyscope::getTetMesh("tMesh")->addTetVectorQuantity("X", tetXs);
 
     Eigen::VectorXd ones = Eigen::VectorXd::Ones(divX.size());
     divX -= divX.dot(ones) * ones;
-    Eigen::VectorXd phi = solver.solve(divX);
-    polyscope::getTetMesh("tMesh")->addVertexScalarQuantity("divX", divX);
-    polyscope::getTetMesh("tMesh")->addVertexScalarQuantity("phi", phi);
+    Eigen::VectorXd phi = solver2.solve(divX);
 
     std::vector<double> distances(phi.data(), phi.data() + phi.size());
     double minDist = distances[0];
     for (size_t i = 1; i < distances.size(); ++i) {
         minDist = fmin(minDist, distances[i]);
     }
-    for (size_t i = 1; i < distances.size(); ++i) {
+    for (size_t i = 0; i < distances.size(); ++i) {
         distances[i] -= minDist;
         assert(distances[i] >= 0);
     }

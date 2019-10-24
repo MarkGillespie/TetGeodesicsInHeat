@@ -3,21 +3,16 @@
 #include <gtest/gtest.h>
 
 #include <Eigen/SparseCore>
+#include "vector3.h"
 
-#include "geometrycentral/surface/halfedge_mesh.h"
-
-#include "geometrycentral/utilities/vector2.h"
-#include "geometrycentral/utilities/vector3.h"
+#include <cmath>
 
 #include <stdlib.h> /* rand */
 
-#define EXPECT_VEC2_EQ(a, b) EXPECT_PRED2(Vector2Eq, a, b)
 #define EXPECT_VEC3_EQ(a, b) EXPECT_PRED2(Vector3Eq, a, b)
 #define EXPECT_VEC3_NEAR(a, b, eps) EXPECT_PRED3(Vector3Near, a, b, eps)
 #define EXPECT_MAT_EQ(a, b) ExpectMatEq(a, b)
 
-using namespace geometrycentral;
-using namespace geometrycentral::surface;
 using std::cerr;
 using std::cout;
 using std::endl;
@@ -75,23 +70,8 @@ void ExpectMatEq(const Eigen::MatrixXd& a_, const Eigen::MatrixXd& b_,
 }
 
 // =============================================================
-//    Floating Point Comparison for Geometry-Central Vectors
+//    Floating Point Comparison for Vectors
 // =============================================================
-
-// Vector2 floating point equality (up to sign)
-bool Vector2EqPm(const Vector2& a, const Vector2& b) {
-    const ::testing::internal::FloatingPoint<double> ax(a.x), ay(a.y), bx(b.x),
-        by(b.y), nbx(-b.x), nby(-b.y);
-    return (ax.AlmostEquals(bx) && ay.AlmostEquals(by)) ||
-           (ax.AlmostEquals(nbx) && ay.AlmostEquals(nby));
-}
-
-// Vector2 floating point equality
-bool Vector2Eq(const Vector2& a, const Vector2& b) {
-    const ::testing::internal::FloatingPoint<double> ax(a.x), ay(a.y), bx(b.x),
-        by(b.y);
-    return ax.AlmostEquals(bx) && ay.AlmostEquals(by);
-}
 
 // Vector3 floating point equality
 bool Vector3Eq(const Vector3& a, const Vector3& b) {

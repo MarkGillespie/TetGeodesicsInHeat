@@ -36,7 +36,7 @@ if ("${CMAKE_CXX_COMPILER_ID}" MATCHES "Clang" OR "${CMAKE_CXX_COMPILER_ID}" STR
     SET(BASE_CXX_FLAGS "${BASE_CXX_FLAGS} -fmax-errors=5")
     SET(DISABLED_WARNINGS "${DISABLED_WARNINGS} -Wno-maybe-uninitialized -Wno-format-zero-length -Wno-unused-but-set-parameter -Wno-unused-but-set-variable")
   endif()
-  
+
   SET(CMAKE_CXX_FLAGS "${BASE_CXX_FLAGS} ${DISABLED_WARNINGS}")
   SET(CMAKE_CXX_FLAGS_DEBUG          "-g3")
   SET(CMAKE_CXX_FLAGS_RELEASE        "-O3 -march=native -DNDEBUG")
@@ -62,6 +62,5 @@ endif()
 
 
 # == Deps
-add_subdirectory(deps/geometry-central)
 add_subdirectory(deps/polyscope)
 add_subdirectory(src)
