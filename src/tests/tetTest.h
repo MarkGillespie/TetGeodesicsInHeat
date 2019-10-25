@@ -26,11 +26,11 @@ class TetTest : public ::testing::Test {
         positions.emplace_back(Vector3{dist(e2), dist(e2), dist(e2)});
         positions.emplace_back(Vector3{dist(e2), dist(e2), dist(e2)});
 
-        std::vector<std::vector<size_t>> tets;
-        tets.emplace_back(std::vector<size_t>{0, 1, 2, 3});
+        std::vector<std::array<size_t, 4>> tets;
+        tets.emplace_back(std::array<size_t, 4>{0, 1, 2, 3});
 
-        std::vector<std::vector<size_t>> neigh;
-        neigh.emplace_back(std::vector<size_t>{0, 0, 0, 0});
+        std::vector<std::array<int, 4>> neigh;
+        neigh.emplace_back(std::array<int, 4>{-1, -1, -1, -1});
 
         tetMesh = CompArch::TetMesh::construct(positions, tets, neigh);
     }

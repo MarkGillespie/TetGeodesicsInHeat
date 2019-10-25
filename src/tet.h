@@ -31,9 +31,9 @@ class PartialEdge {
 
 class Tet {
   public:
-    std::vector<size_t> verts; // indices of vertices
-    std::vector<size_t> edges; // indices of PartialEdges
-    std::vector<size_t> neigh; // indices of neighboring Tets
+    std::array<size_t, 4> verts; // indices of vertices
+    std::array<size_t, 6> edges; // indices of PartialEdges
+    std::array<int, 4> neigh; // indices of neighboring Tets
                                // neigh[i] is opposite verts[i]
 
     // Partial edges stored in order:
@@ -61,12 +61,13 @@ class TetMesh {
     TetMesh();
 
     std::vector<glm::vec3> vertexPositions();
-    std::vector<std::vector<size_t>> faceList();
-    std::vector<std::vector<size_t>> tetList();
+    std::vector<std::array<size_t, 3>> faceList();
+    std::vector<std::array<size_t, 4>> tetList();
+    std::vector<int> neighborList();
 
     static TetMesh* construct(const std::vector<Vector3>& positions,
-                              const std::vector<std::vector<size_t>>& tets,
-                              const std::vector<std::vector<size_t>>& neigh);
+                              const std::vector<std::array<size_t, 4>>& tets,
+                              const std::vector<std::array<int, 4>>& neigh);
 
     void recomputeGeometry();
 

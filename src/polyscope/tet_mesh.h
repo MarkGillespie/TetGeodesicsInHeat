@@ -31,6 +31,11 @@ struct QuantityTypeHelper<TetMesh> {
     typedef TetMeshQuantity type;
 };
 
+struct EdgePt {
+  float bary;
+  size_t src;
+  size_t dst;
+};
 
 class TetMesh : public QuantityStructure<TetMesh> {
   public:
@@ -39,15 +44,27 @@ class TetMesh : public QuantityStructure<TetMesh> {
     TetMesh(std::string name_);
     TetMesh(std::string name_, std::vector<glm::vec3> vertices_,
             std::vector<std::vector<size_t>> tets_);
+    TetMesh(std::string name_, std::vector<glm::vec3> vertices_,
+            std::vector<std::vector<size_t>> tets_, std::vector<int> tetNeighbors_);
 
     std::vector<glm::vec3> vertices;
-    std::vector<std::vector<size_t>> tets;
+    std::vector<std::array<size_t, 4>> tets;
 
-    std::vector<std::vector<size_t>> faces;
-    std::vector<std::vector<size_t>> localFaces;
+    std::vector<std::array<size_t, 3>> faces;
+    std::vector<std::array<size_t, 3>> localFaces;
     std::vector<glm::vec3> faceNormals;
+    std::vector<int> tetNeighbors; // neighor -1 means boundary
     std::vector<glm::vec3> tetCenters;
     glm::vec3 faceCenter(size_t iF);
+
+    std::vector<size_t> boundaryFaces;
+    std::vector<char> isBoundaryVertex;
+    std::vector<char> isBoundaryFace;
+
+    std::vector<std::vector<EdgePt>> visibleFaces;
+    std::vector<glm::vec3> visibleFaceNormals;
+    glm::vec3 pos(EdgePt e);
+    double interp(EdgePt e, const std::vector<double>& f);
 
     std::vector<double> vertexVolumes;
     std::vector<double> faceAreas;
@@ -87,7 +104,13 @@ class TetMesh : public QuantityStructure<TetMesh> {
     std::unique_ptr<gl::GLProgram> program;
     std::unique_ptr<gl::GLProgram> pickProgram;
     std::unique_ptr<gl::GLProgram> wireframeProgram;
+
     void prepare();
+
+    // Take part where fn >= 0
+    std::vector<EdgePt> clipFace(const std::array<size_t, 3>& face, const std::array<double, 3>& fn);
+    std::vector<EdgePt> clipTet( const std::array<size_t,4>& tet, const std::array<double, 4>& fn);
+    void precomputeVisibleGeometry();
     void prepareWireframe();
     void preparePick();
     void geometryChanged(); // call whenever geometry changed
@@ -113,6 +136,7 @@ class TetMesh : public QuantityStructure<TetMesh> {
     float sliceTheta = 0.0;
     float slicePhi   = 0.0;
     bool sliceThroughTets = false;
+    bool visibleGeometryUpToDate = false;
 
     // Picking-related
     // Order of indexing: vertices, faces
@@ -203,6 +227,21 @@ TetMesh* registerTetMesh(std::string name, const V& vertexPositions,
 
     return t;
 }
+
+ template <class V, class T, class S>
+   TetMesh* registerTetMesh(std::string name, const V& vertexPositions,
+                            const T& tetIndices, const S& neigh, bool replaceIfPresent = true) {
+   TetMesh* t =
+     new TetMesh(name, standardizeVectorArray<glm::vec3, 3>(vertexPositions),
+                 standardizeNestedList<size_t, T>(tetIndices),
+                 standardizeArray<int, S>(neigh));
+   bool success = registerStructure(t);
+   if (!success) {
+     safeDelete(t);
+   }
+
+   return t;
+ }
 
 // Shorthand to get a mesh from polyscope
 inline TetMesh* getTetMesh(std::string name = "") {

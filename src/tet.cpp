@@ -441,24 +441,24 @@ std::vector<glm::vec3> TetMesh::vertexPositions() {
     return vertexPositions;
 }
 
-std::vector<std::vector<size_t>> TetMesh::faceList() {
-    std::vector<std::vector<size_t>> faces;
+  std::vector<std::array<size_t, 3>> TetMesh::faceList() {
+    std::vector<std::array<size_t, 3>> faces;
     for (Tet t : tets) {
         faces.emplace_back(
-            std::vector<size_t>{t.verts[0], t.verts[1], t.verts[2]});
+            std::array<size_t, 3>{t.verts[0], t.verts[1], t.verts[2]});
         faces.emplace_back(
-            std::vector<size_t>{t.verts[0], t.verts[2], t.verts[3]});
+            std::array<size_t, 3>{t.verts[0], t.verts[2], t.verts[3]});
         faces.emplace_back(
-            std::vector<size_t>{t.verts[0], t.verts[3], t.verts[1]});
+            std::array<size_t, 3>{t.verts[0], t.verts[3], t.verts[1]});
         faces.emplace_back(
-            std::vector<size_t>{t.verts[2], t.verts[1], t.verts[3]});
+            std::array<size_t, 3>{t.verts[2], t.verts[1], t.verts[3]});
     }
 
     return faces;
 }
 
-std::vector<std::vector<size_t>> TetMesh::tetList() {
-    std::vector<std::vector<size_t>> tetCombinatorics;
+std::vector<std::array<size_t, 4>> TetMesh::tetList() {
+    std::vector<std::array<size_t, 4>> tetCombinatorics;
     for (Tet t : tets) {
         tetCombinatorics.emplace_back(t.verts);
     }
@@ -466,9 +466,20 @@ std::vector<std::vector<size_t>> TetMesh::tetList() {
     return tetCombinatorics;
 }
 
+std::vector<int> TetMesh::neighborList() {
+  std::vector<int> neighbors;
+  for (Tet t : tets) {
+    for (int n : t.neigh) {
+      neighbors.emplace_back(n);
+    }
+  }
+
+  return neighbors;
+}
+
 TetMesh* TetMesh::construct(const std::vector<Vector3>& positions,
-                            const std::vector<std::vector<size_t>>& tets,
-                            const std::vector<std::vector<size_t>>& neigh) {
+                            const std::vector<std::array<size_t, 4>>& tets,
+                            const std::vector<std::array<int, 4>>& neigh) {
     TetMesh* mesh = new TetMesh();
 
     for (Vector3 p : positions) {
@@ -481,6 +492,8 @@ TetMesh* TetMesh::construct(const std::vector<Vector3>& positions,
     for (size_t n = 0; n < tets.size(); ++n) {
         Tet t;
         t.verts = tets[n];
+        t.neigh = neigh[n];
+
         // reorder vertices to be positively oriented
         // the tetrahedron is positively oriented if it has positive volume
         Vector3 v0 = mesh->vertices[t.verts[0]].position;
@@ -491,20 +504,19 @@ TetMesh* TetMesh::construct(const std::vector<Vector3>& positions,
         if (vol > 0) {
             // Have to reverse orientation.
             // We do so by swapping v1 and v2
-            size_t temp = t.verts[0];
-            t.verts[0]  = t.verts[1];
-            t.verts[1]  = temp;
+            std::swap(t.verts[0], t.verts[1]);
+            std::swap(t.neigh[0], t.neigh[1]);
         }
 
-        // TODO: Order the neighbors so that neigh[i] is opposite verts[i]
-        t.neigh = neigh[n];
 
         // Add in PartialEdges
         size_t tIdx = tets.size();
+        size_t ct = 0;
         for (size_t i = 0; i < 4; ++i) {
             for (size_t j = i + 1; j < 4; ++j) {
                 size_t eIdx = mesh->edges.size();
-                t.edges.emplace_back(eIdx);
+                t.edges[ct] = eIdx;
+                ++ct;
                 mesh->vertices[t.verts[i]].edges.emplace_back(eIdx);
                 mesh->vertices[t.verts[j]].edges.emplace_back(eIdx);
                 mesh->edges.emplace_back(
@@ -549,7 +561,7 @@ TetMesh* TetMesh::loadFromFile(string elePath) {
         node.close();
     }
 
-    std::vector<std::vector<size_t>> tets;
+    std::vector<std::array<size_t, 4>> tets;
     ifstream ele(elePath);
     if (ele.is_open()) {
         string line;
@@ -570,7 +582,7 @@ TetMesh* TetMesh::loadFromFile(string elePath) {
             assert(d > 0);
 
             // 1-indexed?
-            tets.emplace_back(std::vector<size_t>{a - 1, b - 1, c - 1, d - 1});
+            tets.emplace_back(std::array<size_t, 4>{a - 1, b - 1, c - 1, d - 1});
             assert(a - 1 < verts.size());
             assert(b - 1 < verts.size());
             assert(c - 1 < verts.size());
@@ -582,7 +594,7 @@ TetMesh* TetMesh::loadFromFile(string elePath) {
         ele.close();
     }
 
-    std::vector<std::vector<size_t>> neighbors;
+    std::vector<std::array<int, 4>> neighbors;
     ifstream neigh(neighPath);
     if (neigh.is_open()) {
         string line;
@@ -591,10 +603,10 @@ TetMesh* TetMesh::loadFromFile(string elePath) {
             if (line[0] == '#' || line.length() == 0) continue;
 
             istringstream ss(line);
-            size_t idx, a, b, c, d;
+            int idx, a, b, c, d;
             ss >> idx >> a >> b >> c >> d;
-            neighbors.emplace_back(std::vector<size_t>{a, b, c, d});
-            assert(idx == neighbors.size());
+            neighbors.emplace_back(std::array<int, 4>{a, b, c, d});
+            assert(idx == (int) neighbors.size());
         }
 
         neigh.close();

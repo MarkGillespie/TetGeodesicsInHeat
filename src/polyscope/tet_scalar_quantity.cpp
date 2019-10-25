@@ -176,23 +176,22 @@ void TetVertexScalarQuantity::draw() {
 
 void TetVertexScalarQuantity::fillColorBuffers(gl::GLProgram& p) {
     std::vector<double> colorval;
-    colorval.reserve(3 * parent.nFaces());
+    colorval.reserve(3 * parent.visibleFaces.size());
 
-    for (size_t iT = 0; iT < parent.tets.size(); iT++) {
-        if (glm::dot(parent.tetCenters[iT], parent.sliceNormal) >
-            parent.sliceDist)
-            continue;
-        for (size_t iF = 4 * iT; iF < 4 * iT + 4; ++iF) {
-            auto& face = parent.faces[iF];
-            size_t D   = face.size();
+    for (size_t iF = 0; iF < parent.visibleFaces.size(); ++iF) {
+      std::vector<EdgePt> face = parent.visibleFaces[iF];
+      size_t D = face.size();
 
-            size_t vA = face[0];
-            size_t vB = face[1];
-            size_t vC = face[2];
-            colorval.push_back(values[vA]);
-            colorval.push_back(values[vB]);
-            colorval.push_back(values[vC]);
-        }
+      // implicitly triangulate from root
+      double vRoot = parent.interp(face[0], values);
+      for (size_t j = 1; (j + 1) < D; j++) {
+        double vB = parent.interp(face[j], values);
+        double vC = parent.interp(face[j+1], values);
+
+        colorval.push_back(vRoot);
+        colorval.push_back(vB);
+        colorval.push_back(vC);
+      }
     }
 
     // Store data in buffers
@@ -245,15 +244,21 @@ void TetFaceScalarQuantity::createProgram() {
 }
 
 void TetFaceScalarQuantity::fillColorBuffers(gl::GLProgram& p) {
-    std::vector<double> colorval;
-    colorval.reserve(3 * parent.nFaces());
 
-    for (size_t iT = 0; iT < parent.tets.size(); iT++) {
-        if (glm::dot(parent.tetCenters[iT], parent.sliceNormal) >
-            parent.sliceDist)
-            continue;
-        for (size_t iF = 4 * iT; iF < 4 * iT + 4; ++iF) {
-            auto& face = parent.faces[iF];
+    std::vector<double> colorval;
+    std::cout << "NOT FACE COLORS IMPLEMENTED YET" << std::endl;
+    colorval.reserve(3 * parent.visibleFaces.size());
+
+    for (size_t iF = 0; iF < parent.visibleFaces.size(); ++iF) {
+      std::vector<EdgePt> face = parent.visibleFaces[iF];
+      size_t D = face.size();
+
+      // implicitly triangulate from root
+      double vRoot = parent.interp(face[0], values);
+      for (size_t j = 1; (j + 1) < D; j++) {
+        double vB = parent.interp(face[j], values);
+        double vC = parent.interp(face[j+1], values);
+
             colorval.push_back(values[iF]);
             colorval.push_back(values[iF]);
             colorval.push_back(values[iF]);

@@ -95,10 +95,10 @@ int main(int argc, char** argv) {
 
       // Register the mesh with polyscope
       psMesh = polyscope::registerTetMesh("tMesh", mesh->vertexPositions(),
-                                          mesh->tetList());
+                                          mesh->tetList(), mesh->neighborList());
       polyscope::getTetMesh("tMesh");
-      psMesh->addFaceVectorQuantity("normal", faceNormals);
-      psMesh->addVertexScalarQuantity("volumes", mesh->vertexDualVolumes);
+      // psMesh->addFaceVectorQuantity("normal", faceNormals);
+      // psMesh->addVertexScalarQuantity("volumes", mesh->vertexDualVolumes);
 
     }
 
