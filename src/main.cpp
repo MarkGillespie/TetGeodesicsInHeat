@@ -6,6 +6,8 @@
 #include "args/args.hxx"
 #include "imgui.h"
 
+#include <ctime>
+
 #include <Eigen/SparseCholesky>
 #include <Eigen/SparseCore>
 
@@ -22,7 +24,7 @@ float diffusionTime = 0.001;
 
 void computeDistances(float diffusionTime) {
     std::vector<double> startingPoints(mesh->vertices.size(), 0.0);
-    startingPoints[1850] = 1;
+    startingPoints[8528] = 1;
     double h             = mesh->meanEdgeLength();
     if (diffusionTime < 0) diffusionTime = h;
     std::vector<double> distances =
@@ -100,9 +102,25 @@ int main(int argc, char** argv) {
       // psMesh->addFaceVectorQuantity("normal", faceNormals);
       // psMesh->addVertexScalarQuantity("volumes", mesh->vertexDualVolumes);
 
+      computeDistances(-1);
     }
 
-    computeDistances(-1);
+
+    Eigen::SparseMatrix<double> L    = mesh->weakLaplacian();
+    Eigen::SparseMatrix<double> M    = mesh->massMatrix();
+    Eigen::SparseMatrix<double> flow = M + 0.1 * L;
+    Eigen::SimplicialLDLT<Eigen::SparseMatrix<double>> solver;
+
+    std::clock_t start;
+    double duration;
+
+    start = std::clock();
+
+    solver.compute(flow);
+
+    duration = ( std::clock() - start ) / (double) CLOCKS_PER_SEC * 1000;
+
+    std::cout<< mesh->tets.size()<<"\t"<< duration <<"\n";
 
     if (vis) {
       // Give control to the polyscope gui
