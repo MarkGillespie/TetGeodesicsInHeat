@@ -2,15 +2,20 @@
 
 namespace CompArch {
 
-std::vector<double> TetMesh::distances(std::vector<double> start, double t) {
+std::vector<double> TetMesh::distances(std::vector<double> start, double t, bool verbose) {
+    if (verbose) cout << "Starting distance computation";
     Eigen::VectorXd u0 = Eigen::VectorXd::Map(start.data(), start.size());
+    if (verbose) cout << "Building L";
     Eigen::SparseMatrix<double> L    = weakLaplacian();
+    if (verbose) cout << "Computed L" << endl;
     Eigen::SparseMatrix<double> M    = massMatrix();
     Eigen::SparseMatrix<double> flow = M + t * L;
     Eigen::SimplicialLDLT<Eigen::SparseMatrix<double>> solver;
     Eigen::SimplicialLDLT<Eigen::SparseMatrix<double>> solver2;
     solver.compute(flow);
+    if (verbose) cout << "Factorized M + tL" << endl;
     solver2.compute(L);
+    if (verbose) cout << "Factorized L" << endl;
 
     Eigen::VectorXd u = solver.solve(u0);
 

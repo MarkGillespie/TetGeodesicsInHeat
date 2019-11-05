@@ -26,7 +26,13 @@ add_library(
     vector3.h
     vector3.ipp
 )
-target_link_libraries(tetMesh polyscope polyscopeTetMesh Eigen3::Eigen)
+target_link_libraries(tetMesh polyscope polyscopeTetMesh Eigen3::Eigen cudaCG)
+
+add_library(
+  cudaCG
+  cuda/cg.cu
+  )
+target_link_libraries(cudaCG tetMesh)
 
 add_executable(
   run

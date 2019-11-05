@@ -1,6 +1,10 @@
 cmake_minimum_required(VERSION 3.10.0)
 
-project(gc_polyscope_example)
+project(gc_polyscope_example LANGUAGES CXX CUDA)
+
+# Suppress some complaints that Cuda has with glm
+# See https://github.com/kokkos/kokkos/issues/1473
+SET(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} -Xcudafe --diag_suppress=esa_on_defaulted_function_ignored")
 
 # == Export compile commands
 set (CMAKE_EXPORT_COMPILE_COMMANDS ON)

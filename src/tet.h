@@ -79,7 +79,7 @@ class TetMesh {
     Eigen::SparseMatrix<double> weakLaplacian();
     Eigen::SparseMatrix<double> massMatrix();
 
-    std::vector<double> distances(std::vector<double> start, double t);
+    std::vector<double> distances(std::vector<double> start, double t, bool verbose=false);
 
     std::array<Vector3, 4> layOutIntrinsicTet(Tet t);
 
