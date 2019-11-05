@@ -6,6 +6,8 @@
 #include "args/args.hxx"
 #include "imgui.h"
 
+#include <ctime>
+
 #include <Eigen/SparseCholesky>
 #include <Eigen/SparseCore>
 
@@ -20,19 +22,19 @@ polyscope::TetMesh* psMesh;
 
 float diffusionTime = 0.001;
 
-void computeDistances(float diffusionTime, bool verbose=false) {
+void computeDistances(float diffusionTime, bool verbose = false) {
     if (verbose) cout << "Beginning to compute distances" << endl;
     std::vector<double> startingPoints(mesh->vertices.size(), 0.0);
     startingPoints[1850] = 1;
     if (verbose) cout << "about to compute h" << endl;
-    double h             = mesh->meanEdgeLength();
+    double h = mesh->meanEdgeLength();
     if (diffusionTime < 0) diffusionTime = h;
     if (verbose) cout << "done computing h" << endl;
     std::vector<double> distances =
         mesh->distances(startingPoints, diffusionTime, verbose);
 
     if (vis) {
-      auto* q = psMesh->addVertexScalarQuantity("distances", distances);
+        auto* q = psMesh->addVertexScalarQuantity("distances", distances);
     }
     // q->setEnabled(true);
 }
@@ -53,7 +55,8 @@ int main(int argc, char** argv) {
     args::ArgumentParser parser("Geometry program");
     args::Positional<std::string> inputFilename(
         parser, "mesh", "Tet mesh (ele file) to be processed.");
-    args::Flag noVis(parser, "noVis", "Set to disable visualization", {'n', "no_vis"});
+    args::Flag noVis(parser, "noVis", "Set to disable visualization",
+                     {'n', "no_vis"});
 
     // Parse args
     try {
@@ -73,47 +76,61 @@ int main(int argc, char** argv) {
         filename = args::get(inputFilename);
     }
     if (noVis) {
-      vis = false;
+        vis = false;
     }
 
     mesh = TetMesh::loadFromFile(filename);
     cout << "Loaded mesh" << endl;
 
     if (vis) {
-      // Initialize polyscope
-      polyscope::init();
+        // Initialize polyscope
+        polyscope::init();
 
-      // Set the callback function
-      polyscope::state::userCallback = myCallback;
+        // Set the callback function
+        polyscope::state::userCallback = myCallback;
 
-      // Register the mesh with polyscope
-      psMesh = polyscope::registerTetMesh("tMesh", mesh->vertexPositions(),
-                                          mesh->tetList(), mesh->neighborList());
-      polyscope::getTetMesh("tMesh");
+        // Register the mesh with polyscope
+        psMesh =
+            polyscope::registerTetMesh("tMesh", mesh->vertexPositions(),
+                                       mesh->tetList(), mesh->neighborList());
+        polyscope::getTetMesh("tMesh");
 
-      // std::vector<glm::vec3> faceNormals;
-      // for (auto f : mesh->faceList()) {
-      //     Vector3 a = mesh->vertices[f[0]].position;
-      //     Vector3 b = mesh->vertices[f[1]].position;
-      //     Vector3 c = mesh->vertices[f[2]].position;
+        // std::vector<glm::vec3> faceNormals;
+        // for (auto f : mesh->faceList()) {
+        //     Vector3 a = mesh->vertices[f[0]].position;
+        //     Vector3 b = mesh->vertices[f[1]].position;
+        //     Vector3 c = mesh->vertices[f[2]].position;
 
-      //     Vector3 N = cross(b - a, c - a);
-      //     N /= N.norm();
-      //     faceNormals.emplace_back(glm::vec3{N.x, N.y, N.z});
-      // }
-      // psMesh->addFaceVectorQuantity("normal", faceNormals);
-      // psMesh->addVertexScalarQuantity("volumes", mesh->vertexDualVolumes);
-      //
+        //     Vector3 N = cross(b - a, c - a);
+        //     N /= N.norm();
+        //     faceNormals.emplace_back(glm::vec3{N.x, N.y, N.z});
+        // }
+        // psMesh->addFaceVectorQuantity("normal", faceNormals);
+        // psMesh->addVertexScalarQuantity("volumes", mesh->vertexDualVolumes);
+        //
 
+        computeDistances(-1);
     }
 
-    cout << "Here" << endl;
-    computeDistances(-1, true);
-    cout << "Computed Distances" << endl;
+    Eigen::SparseMatrix<double> L    = mesh->weakLaplacian();
+    Eigen::SparseMatrix<double> M    = mesh->massMatrix();
+    Eigen::SparseMatrix<double> flow = M + 0.1 * L;
+    Eigen::SimplicialLDLT<Eigen::SparseMatrix<double>> solver;
+
+    std::clock_t start;
+    double duration;
+
+    start = std::clock();
+
+    solver.compute(flow);
+
+    duration = (std::clock() - start) / (double)CLOCKS_PER_SEC * 1000;
+
+    std::cout << mesh->tets.size() << "\t" << duration << "\n";
 
     if (vis) {
-      // Give control to the polyscope gui
-      polyscope::show();
+        // Give control to the polyscope gui
+        polyscope::show();
     }
 
     return EXIT_SUCCESS;
