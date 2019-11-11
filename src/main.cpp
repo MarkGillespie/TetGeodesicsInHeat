@@ -31,7 +31,6 @@ void computeDistances(float diffusionTime) {
         mesh->distances(startingPoints, diffusionTime);
     if (vis) {
         auto* q = psMesh->addVertexScalarQuantity("distances", distances);
-        q->setColorMap(polyscope::gl::ColorMapID::STRIPES);
         q->setEnabled(true);
     }
 }
