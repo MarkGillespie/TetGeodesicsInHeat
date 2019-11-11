@@ -8,25 +8,13 @@ endif()
 find_package (Eigen3 3.3 REQUIRED NO_MODULE)
 
 add_library(
-   polyscopeTetMesh
-   polyscope/tet_mesh.cpp
-   polyscope/tet_mesh.h
-   polyscope/tet_mesh_quantity.h
-   polyscope/tet_scalar_quantity.cpp
-   polyscope/tet_scalar_quantity.h
-   polyscope/tet_vector_quantity.cpp
-   polyscope/tet_vector_quantity.h
-)
-target_link_libraries(polyscopeTetMesh polyscope)
-
-add_library(
     tetMesh
     tet.h
     tet.cpp
     vector3.h
     vector3.ipp
 )
-target_link_libraries(tetMesh polyscope polyscopeTetMesh Eigen3::Eigen)
+target_link_libraries(tetMesh polyscope Eigen3::Eigen)
 
 add_executable(
   run

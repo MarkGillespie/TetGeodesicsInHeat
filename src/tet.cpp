@@ -49,7 +49,7 @@ std::vector<double> TetMesh::distances(std::vector<double> start, double t) {
     return distances;
 }
 
-// return the gradient of function u linearly interpolated over a tetrahedron
+  // return the gradient of function u linearly interpolated over a tetrahedron
 // with vertices p[0], ... , p[3]
 Vector3 grad(std::array<double, 4> u, std::array<Vector3, 4> p) {
     Vector3 gradU{0, 0, 0};
