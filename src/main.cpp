@@ -29,11 +29,11 @@ void computeDistances(float diffusionTime) {
     if (diffusionTime < 0) diffusionTime = h;
     std::vector<double> distances =
         mesh->distances(startingPoints, diffusionTime);
-
     if (vis) {
-      auto* q = psMesh->addVertexScalarQuantity("distances", distances);
+        auto* q = psMesh->addVertexScalarQuantity("distances", distances);
+        q->setColorMap(polyscope::gl::ColorMapID::STRIPES);
+        q->setEnabled(true);
     }
-    // q->setEnabled(true);
 }
 
 // A user-defined callback, for creating control panels (etc)
@@ -52,7 +52,8 @@ int main(int argc, char** argv) {
     args::ArgumentParser parser("Geometry program");
     args::Positional<std::string> inputFilename(
         parser, "mesh", "Tet mesh (ele file) to be processed.");
-    args::Flag noVis(parser, "noVis", "Set to disable visualization", {'n', "no_vis"});
+    args::Flag noVis(parser, "noVis", "Set to disable visualization",
+                     {'n', "no_vis"});
 
     // Parse args
     try {
@@ -72,7 +73,7 @@ int main(int argc, char** argv) {
         filename = args::get(inputFilename);
     }
     if (noVis) {
-      vis = false;
+        vis = false;
     }
 
     mesh = TetMesh::loadFromFile(filename);
@@ -99,8 +100,6 @@ int main(int argc, char** argv) {
       psMesh = polyscope::registerTetMesh("tMesh", mesh->vertexPositions(),
                                           mesh->tetList(), mesh->neighborList());
       polyscope::getTetMesh("tMesh");
-      // psMesh->addFaceVectorQuantity("normal", faceNormals);
-      // psMesh->addVertexScalarQuantity("volumes", mesh->vertexDualVolumes);
 
       computeDistances(-1);
     }
@@ -123,8 +122,8 @@ int main(int argc, char** argv) {
     std::cout<< mesh->tets.size()<<"\t"<< duration <<"\n";
 
     if (vis) {
-      // Give control to the polyscope gui
-      polyscope::show();
+        // Give control to the polyscope gui
+        polyscope::show();
     }
 
     return EXIT_SUCCESS;
