@@ -16,7 +16,7 @@ std::vector<double> TetMesh::distances(std::vector<double> start, double t) {
 
     Eigen::VectorXd divX = Eigen::VectorXd::Zero(u.size());
 
-    std::vector<glm::vec3> tetXs;
+    std::vector<Vector3> tetXs;
     for (Tet t : tets) {
         std::array<Vector3, 4> vertexPositions = layOutIntrinsicTet(t);
         std::array<double, 4> tetU{u[t.verts[0]], u[t.verts[1]], u[t.verts[2]],
@@ -24,7 +24,7 @@ std::vector<double> TetMesh::distances(std::vector<double> start, double t) {
         Vector3 tetGradU = grad(tetU, vertexPositions);
         Vector3 X = tetGradU.normalize();
 
-        tetXs.emplace_back(glm::vec3{X.x, X.y, X.z});
+        tetXs.emplace_back(Vector3{X.x, X.y, X.z});
 
         std::array<double, 4> tetDivX = div(X, vertexPositions);
         for (size_t i = 0; i < 4; ++i) {
@@ -429,13 +429,13 @@ void TetMesh::recomputeGeometry() {
     }
 }
 
-std::vector<glm::vec3> TetMesh::vertexPositions() {
-    std::vector<glm::vec3> vertexPositions;
+std::vector<Vector3> TetMesh::vertexPositions() {
+    std::vector<Vector3> vertexPositions;
     // for (Vertex v : vertices) {
     for (size_t i = 0; i < vertices.size(); ++i) {
         Vertex v = vertices[i];
         vertexPositions.emplace_back(
-            glm::vec3{v.position.x, v.position.y, v.position.z});
+            Vector3{v.position.x, v.position.y, v.position.z});
     }
 
     return vertexPositions;

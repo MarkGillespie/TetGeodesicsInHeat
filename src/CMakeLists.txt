@@ -14,14 +14,14 @@ add_library(
     vector3.h
     vector3.ipp
 )
-target_link_libraries(tetMesh polyscope Eigen3::Eigen)
+target_link_libraries(tetMesh Eigen3::Eigen)
 
 add_executable(
   run
   main.cpp
 )
 target_include_directories(run PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/../include")
-target_link_libraries(run polyscope tetMesh)
+target_link_libraries(run tetMesh args)
 
 option(PACKAGE_TESTS "Build the tests" ON)
 

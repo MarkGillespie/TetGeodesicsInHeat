@@ -1,6 +1,5 @@
 #include "vector3.h"
 #include <fstream>
-#include <glm/glm.hpp>
 #include <iostream>
 #include <sstream>
 #include <vector>
@@ -60,7 +59,7 @@ class TetMesh {
 
     TetMesh();
 
-    std::vector<glm::vec3> vertexPositions();
+    std::vector<Vector3> vertexPositions();
     std::vector<std::array<size_t, 3>> faceList();
     std::vector<std::array<size_t, 4>> tetList();
     std::vector<int> neighborList();

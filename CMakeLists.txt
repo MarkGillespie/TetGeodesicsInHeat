@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.10.0)
 
-project(gc_polyscope_example)
+project(tet_geodesics_in_heat)
 
 # == Export compile commands
 set (CMAKE_EXPORT_COMPILE_COMMANDS ON)
@@ -62,5 +62,5 @@ endif()
 
 
 # == Deps
-add_subdirectory(deps/polyscope)
+add_subdirectory(deps/args)
 add_subdirectory(src)
