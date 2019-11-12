@@ -5,6 +5,7 @@
 #include <cuda.h>
 #include <cuda_runtime.h>
 #include <vector>
+#include <unordered_map>
 #include <Eigen/Dense>
 
 #include "../tet.h"

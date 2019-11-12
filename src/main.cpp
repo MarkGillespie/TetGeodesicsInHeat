@@ -115,10 +115,10 @@ int main(int argc, char** argv) {
     std::clock_t start;
     double duration;
 
-    start = std::clock();
-    computeDistances(0, -1, false);
-    duration = ( std::clock() - start ) / (double) CLOCKS_PER_SEC * 1000;
-    std::cout<< "Eigen: " << "nTets: " << mesh->tets.size()<<"\ttime: "<< duration <<"ms\n";
+    //start = std::clock();
+    //computeDistances(0, -1, false);
+    //duration = ( std::clock() - start ) / (double) CLOCKS_PER_SEC * 1000;
+    //std::cout<< "Eigen: " << "nTets: " << mesh->tets.size()<<"\ttime: "<< duration <<"ms\n";
 
     start = std::clock();
     computeDistances(0, -1, true);

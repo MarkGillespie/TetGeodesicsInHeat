@@ -1,10 +1,15 @@
 #include "cg.cuh"
 
-__global__ void computeAp(float *out, float *p, int n) {
+__global__ void computeAp(float *out, float *p, float *cotans, int* neighbors, int meshStride, int n) {
     int index = blockIdx.x * blockDim.x + threadIdx.x;
     int stride = gridDim.x * blockDim.x;
     for(int i = index; i < n; i += stride){
-        out[i] = p[i] + 1/3. * (p[(i+n-1)%n] + p[(i+1)%n]);
+        out[i] = 0;
+        for (int iN = 0; iN < meshStride; ++iN) {
+            int neighbor = neighbors[iN];
+            double weight = cotans[iN];
+            out[i] += weight * (p[i] - p[neighbor]);
+        }
     }
 }
 
@@ -67,6 +72,38 @@ __global__ void compute_beta(float *out, float *r2, float *r, int n) {
   }
 }
 
+std::vector<std::unordered_map<size_t, double>> edgeWeights(const TetMesh& mesh) {
+    std::vector<std::unordered_map<size_t, double>> weights;
+    for (size_t iV = 0; iV < mesh.vertices.size(); ++iV) {
+        std::unordered_map<size_t, double> vWeights;
+        weights.push_back(vWeights);
+    }
+
+    for (size_t iPE = 0; iPE < mesh.edges.size(); ++iPE) {
+        PartialEdge pe = mesh.edges[iPE];
+        size_t vSrc    = pe.src;
+        size_t vDst    = pe.dst;
+
+        double weight = mesh.partialEdgeCotanWeights[iPE];
+
+        auto findSrc = weights[vSrc].find(vDst);
+        if (findSrc == weights[vSrc].end()) {
+            weights[vSrc][vDst] = weight;
+        } else {
+            findSrc->second += weight;
+        }
+
+        auto findDst = weights[vDst].find(vSrc);
+        if (findDst == weights[vDst].end()) {
+            weights[vDst][vSrc] = weight;
+        } else {
+            findDst->second += weight;
+        }
+
+    }
+
+    return weights;
+}
 
 void cgSolve(Eigen::VectorXd& xOut, Eigen::VectorXd bVec, const TetMesh& mesh, double t) {
     float *x, *b, *r;
@@ -103,12 +140,38 @@ void cgSolve(Eigen::VectorXd& xOut, Eigen::VectorXd bVec, const TetMesh& mesh, d
     bool done = false;
     int iter = 0;
 
-    computeAp<<<NBLOCK,NTHREAD>>>(d_Ap, d_x, N);
+    float *cotans;
+    int *neighbors;
+    int maxDegree = 0;
+    std::vector<std::unordered_map<size_t, double>> weights = edgeWeights(mesh);
+    for (size_t iV = 0; iV < mesh.vertices.size(); ++iV) {
+        maxDegree = std::max(maxDegree, (int) weights[iV].size());
+    }
+
+    cotans = (float*) malloc(sizeof(float) * maxDegree * N);
+    neighbors = (int*) malloc(sizeof(int) * maxDegree * N);
+
+    for (size_t iV = 0; iV < mesh.vertices.size(); ++iV) {
+        size_t neighborCount = 0;
+        for (std::pair<size_t, double> elem : weights[iV]) {
+            neighbors[iV * maxDegree + neighborCount] = elem.first;
+            cotans[iV * maxDegree + neighborCount] = elem.second;
+            ++neighborCount;
+        }
+
+        // Fill in the remaining slots with zeros
+        for (size_t iN = neighborCount; iN < maxDegree; ++iN) {
+            neighbors[iV * maxDegree + iN] = neighbors[iV * maxDegree];
+            cotans[iV * maxDegree + iN] = 0;
+        }
+    }
+
+    computeAp<<<NBLOCK,NTHREAD>>>(d_Ap, d_x, cotans, neighbors, maxDegree, N);
     vector_sub<<<NBLOCK,NTHREAD>>>(d_r, d_b, d_Ap, N);
     vector_cpy<<<NBLOCK,NTHREAD>>>(d_p, d_r, N);
     while (!done) {
       for (int i = 0; i < 3; ++i) {
-        computeAp<<<NBLOCK,NTHREAD>>>(d_Ap, d_p, N);
+        computeAp<<<NBLOCK,NTHREAD>>>(d_Ap, d_p, cotans, neighbors, maxDegree, N);
         compute_alpha<<<NBLOCK, NTHREAD>>>(d_alpha, d_r2, d_r, d_p, d_Ap, N);
         update_x_r<<<NBLOCK, NTHREAD>>>(d_x, d_r, d_alpha, d_p, d_Ap, N);
         compute_beta<<<NBLOCK, NTHREAD>>>(d_beta, d_r2, d_r, N);
@@ -138,9 +201,14 @@ void cgSolve(Eigen::VectorXd& xOut, Eigen::VectorXd bVec, const TetMesh& mesh, d
 
     // Verification
     for (int i = 0; i < N; ++i) {
-      float result = x[i] + 1/3. * (x[(i+N-1)%N] + x[(i+1)%N]);
+      float result = 0;
+      for (int iN = 0; iN < maxDegree; ++iN) {
+          int neighbor = neighbors[iN];
+          double weight = cotans[iN];
+          result += weight * (x[i] - x[neighbor]);
+      }
       if (abs(result - b[i]) > 1e-4) {
-          printf("err: %d result[%d] = %f, b[%d] = %f\n", i, i, result, i, b[i]);
+          printf("err: vertex %d result[%d] = %f, b[%d] = %f\n", i, i, result, i, b[i]);
       }
       xOut[i] = x[i];
     }
@@ -158,6 +226,8 @@ void cgSolve(Eigen::VectorXd& xOut, Eigen::VectorXd bVec, const TetMesh& mesh, d
     // Deallocate host memory
     free(x);
     free(b);
+    free(cotans);
+    free(neighbors);
 
     return;
 }
