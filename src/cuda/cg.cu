@@ -1,7 +1,7 @@
 #include "cg.cuh"
 
-#define NTHREAD 256
-#define NBLOCK  5000
+#define NTHREAD 1
+#define NBLOCK  1
 
 __global__ void computeAp(float *out, float *p, float *cotans, int* neighbors, int meshStride, int n) {
     int index = blockIdx.x * blockDim.x + threadIdx.x;
@@ -54,15 +54,6 @@ __global__ void update_x_r(float* x, float* r, float* alpha, float* p, float* Ap
   }
 }
 
-// Returns p = beta * p + r
-__global__ void update_p(float* p, float *beta, float *r, int n) {
-  int index = blockIdx.x * blockDim.x + threadIdx.x;
-  int stride = gridDim.x * blockDim.x;
-  for(int i = index; i < n; i += stride){
-    p[i] = beta[0] * p[i] + r[i];
-  }
-}
-
 __global__ void compute_beta(float *out, float *r2, float *r, int n) {
   int index = blockIdx.x * blockDim.x + threadIdx.x;
   if (index == 0) {
@@ -72,6 +63,25 @@ __global__ void compute_beta(float *out, float *r2, float *r, int n) {
       r2[0] += r[i] * r[i];
     }
     out[0] *= r2[0];
+    r2[0] = 5;
+  }
+}
+
+__global__ void set_r2(float *r2) {
+  int index = blockIdx.x * blockDim.x + threadIdx.x;
+  if (index == 0) {
+    r2[0] = 5;
+  }
+}
+
+// Returns p = beta * p + r
+__global__ void update_p(float* p, float *beta, float *r, int n) {
+  int index = blockIdx.x * blockDim.x + threadIdx.x;
+  int stride = gridDim.x * blockDim.x;
+  for(int i = index; i < n; i += stride){
+      p[i] *= beta[0];
+      p[i] += r[i];
+    //p[i] = beta[0] * p[i] + r[i];
   }
 }
 
@@ -189,41 +199,40 @@ void cgSolve(Eigen::VectorXd& xOut, Eigen::VectorXd bVec, const TetMesh& mesh, d
     printf("\n");
     while (!done) {
       for (int i = 0; i < 1; ++i) {
-        computeAp<<<NBLOCK,NTHREAD>>>(d_Ap, d_p, cotans, neighbors, maxDegree, N);
-        compute_alpha<<<NBLOCK, NTHREAD>>>(d_alpha, d_r2, d_r, d_p, d_Ap, N);
-        update_x_r<<<NBLOCK, NTHREAD>>>(d_x, d_r, d_alpha, d_p, d_Ap, N);
+        // computeAp<<<NBLOCK,NTHREAD>>>(d_Ap, d_p, cotans, neighbors, maxDegree, N);
+        // compute_alpha<<<NBLOCK, NTHREAD>>>(d_alpha, d_r2, d_r, d_p, d_Ap, N);
+        // update_x_r<<<NBLOCK, NTHREAD>>>(d_x, d_r, d_alpha, d_p, d_Ap, N);
         compute_beta<<<NBLOCK, NTHREAD>>>(d_beta, d_r2, d_r, N);
         update_p<<<NBLOCK, NTHREAD>>>(d_p, d_beta, d_r, N);
       }
+      compute_beta<<<NBLOCK, NTHREAD>>>(d_beta, d_r2, d_r, N);
 
       // Transfer data back to host memory
       cudaMemcpy(r, d_r, sizeof(float) * N, cudaMemcpyDeviceToHost);
 
       float *alpha = new float[1];
-      float *beta = new float[1];
-      float *r2 = new float[1];
-      float *p = new float[N];
-      cudaMemcpy(p,     d_p,     sizeof(float) * N, cudaMemcpyDeviceToHost);
-      cudaMemcpy(x,     d_x,     sizeof(float) * N, cudaMemcpyDeviceToHost);
-      cudaMemcpy(r2,    d_r2,    sizeof(float) * N, cudaMemcpyDeviceToHost);
+      //float *beta = new float[1];
+      float *r2 = (float*)malloc(sizeof(float));
+      //float *p = new float[N];
+      //cudaMemcpy(p,     d_p,     sizeof(float) * N, cudaMemcpyDeviceToHost);
+      //cudaMemcpy(x,     d_x,     sizeof(float) * N, cudaMemcpyDeviceToHost);
+      cudaMemcpy(r2,    d_r2,    sizeof(float) * 1, cudaMemcpyDeviceToHost);
       cudaMemcpy(alpha, d_alpha, sizeof(float) * 1, cudaMemcpyDeviceToHost);
-      cudaMemcpy(beta,  d_beta,  sizeof(float) * 1, cudaMemcpyDeviceToHost);
-      float norm = 0;
-      for (int i = 0; i < N; i++) {
-          if (r[i] * r[i] > norm) {
-              printf("\tBIG R: i = %d, \t r = %f\n", i, r[i]);
-          }
-        norm = fmax(norm, r[i] * r[i]);
-      }
+      //cudaMemcpy(beta,  d_beta,  sizeof(float) * 1, cudaMemcpyDeviceToHost);
+      //float norm = 0;
+      //for (int i = 0; i < N; i++) {
+        //norm = fmax(norm, r[i] * r[i]);
+      //}
       ++iter;
-      printf("alpha: %f\tr^2: %f\n", alpha[0], r2[0]);
-      printf("x[0] : %f \t x[1] : %f \t x[2] : %f\n", x[0], x[1], x[2]);
-      printf("p[0] : %f \t p[1] : %f \t p[2] : %f\n", p[0], p[1], p[2]);
+      printf("alpha: %f \t r^2  : %f\n", alpha[0], r2[0]);
+      //printf("x[0] : %f \t x[1] : %f \t x[2] : %f\n", x[0], x[1], x[2]);
+      //printf("p[0] : %f \t p[1] : %f \t p[2] : %f\n", p[0], p[1], p[2]);
       printf("r[0] : %f \t r[1] : %f \t r[2] : %f\n", r[0], r[1], r[2]);
-      printf("norm: %f\n", norm);
-      printf("\n");
-      fflush(stdout);
-      done = (norm < 1e-4) || (iter > 2);
+      //printf("norm: %f\n", norm);
+      //printf("\n");
+      //fflush(stdout);
+      //done = (norm < 1e-4) || (iter > 0);
+      done = true;
     }
 
     // Transfer data back to host memory
