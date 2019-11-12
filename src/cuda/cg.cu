@@ -1,13 +1,4 @@
-#include <stdio.h>
-#include <stdlib.h>
-#include <math.h>
-#include <assert.h>
-#include <cuda.h>
-#include <cuda_runtime.h>
-
-#define N 100000
-#define NTHREAD 256
-#define NBLOCK  5000
+#include "cg.cuh"
 
 __global__ void computeAp(float *out, float *p, int n) {
     int index = blockIdx.x * blockDim.x + threadIdx.x;
@@ -77,9 +68,10 @@ __global__ void compute_beta(float *out, float *r2, float *r, int n) {
 }
 
 
-int main(){
+Eigen::VectorXd cgSolve(Eigen::VectorXd bVec, const TetMesh& mesh, double t) {
     float *x, *b, *r;
     float *d_x, *d_b, *d_p, *d_Ap, *d_r, *d_r2, *d_alpha, *d_beta;
+    int N = bVec.size();
 
     // Allocate host memory
     x   = (float*)malloc(sizeof(float) * N);
@@ -89,7 +81,7 @@ int main(){
     // Initialize host arrays
     for(int i = 0; i < N; i++){
         x[i] = 1.0f;
-        b[i] = i % 4;
+        b[i] = bVec[i];
     }
 
     // Allocate device memory
@@ -153,12 +145,14 @@ int main(){
     // Transfer data back to host memory
     cudaMemcpy(x, d_x, sizeof(float) * N, cudaMemcpyDeviceToHost);
 
+    Eigen::VectorXd xOut(N);
     // Verification
     for (int i = 0; i < N; ++i) {
       float result = x[i] + 1/3. * (x[(i+N-1)%N] + x[(i+1)%N]);
       if (abs(result - b[i]) > 1e-4) {
           printf("err: %d result[%d] = %f, b[%d] = %f\n", i, i, result, i, b[i]);
       }
+      xOut[i] = x[i];
     }
     printf("x[0] = %f\n", x[0]);
 
@@ -175,4 +169,6 @@ int main(){
     // Deallocate host memory
     free(x);
     free(b);
+
+    return xOut;
 }

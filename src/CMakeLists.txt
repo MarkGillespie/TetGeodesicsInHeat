@@ -16,12 +16,19 @@ add_library(
 )
 target_link_libraries(tetMesh Eigen3::Eigen)
 
+add_library(
+    cudaCG
+    cuda/cg.cuh
+    cuda/cg.cu
+)
+target_link_libraries(cudaCG Eigen3::Eigen tetMesh)
+
 add_executable(
   run
   main.cpp
 )
 target_include_directories(run PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/../include")
-target_link_libraries(run tetMesh args)
+target_link_libraries(run tetMesh args cudaCG)
 
 option(PACKAGE_TESTS "Build the tests" ON)
 

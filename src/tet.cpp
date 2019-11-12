@@ -2,54 +2,7 @@
 
 namespace CompArch {
 
-std::vector<double> TetMesh::distances(std::vector<double> start, double t) {
-    Eigen::VectorXd u0 = Eigen::VectorXd::Map(start.data(), start.size());
-    Eigen::SparseMatrix<double> L    = weakLaplacian();
-    Eigen::SparseMatrix<double> M    = massMatrix();
-    Eigen::SparseMatrix<double> flow = M + t * L;
-    Eigen::SimplicialLDLT<Eigen::SparseMatrix<double>> solver;
-    Eigen::SimplicialLDLT<Eigen::SparseMatrix<double>> solver2;
-    solver.compute(flow);
-    solver2.compute(L);
-
-    Eigen::VectorXd u = solver.solve(u0);
-
-    Eigen::VectorXd divX = Eigen::VectorXd::Zero(u.size());
-
-    std::vector<Vector3> tetXs;
-    for (Tet t : tets) {
-        std::array<Vector3, 4> vertexPositions = layOutIntrinsicTet(t);
-        std::array<double, 4> tetU{u[t.verts[0]], u[t.verts[1]], u[t.verts[2]],
-                                   u[t.verts[3]]};
-        Vector3 tetGradU = grad(tetU, vertexPositions);
-        Vector3 X = tetGradU.normalize();
-
-        tetXs.emplace_back(Vector3{X.x, X.y, X.z});
-
-        std::array<double, 4> tetDivX = div(X, vertexPositions);
-        for (size_t i = 0; i < 4; ++i) {
-            divX[t.verts[i]] += tetDivX[i];
-        }
-    }
-
-    Eigen::VectorXd ones = Eigen::VectorXd::Ones(divX.size());
-    divX -= divX.dot(ones) * ones;
-    Eigen::VectorXd phi = solver2.solve(divX);
-
-    std::vector<double> distances(phi.data(), phi.data() + phi.size());
-    double minDist = distances[0];
-    for (size_t i = 1; i < distances.size(); ++i) {
-        minDist = fmin(minDist, distances[i]);
-    }
-    for (size_t i = 0; i < distances.size(); ++i) {
-        distances[i] -= minDist;
-        assert(distances[i] >= 0);
-    }
-
-    return distances;
-}
-
-  // return the gradient of function u linearly interpolated over a tetrahedron
+// return the gradient of function u linearly interpolated over a tetrahedron
 // with vertices p[0], ... , p[3]
 Vector3 grad(std::array<double, 4> u, std::array<Vector3, 4> p) {
     Vector3 gradU{0, 0, 0};

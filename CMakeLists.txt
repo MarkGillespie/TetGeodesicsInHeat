@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.10.0)
 
-project(tet_geodesics_in_heat)
+project(tet_geodesics_in_heat LANGUAGES CXX CUDA)
 
 # == Export compile commands
 set (CMAKE_EXPORT_COMPILE_COMMANDS ON)
