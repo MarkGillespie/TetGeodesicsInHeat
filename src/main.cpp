@@ -17,6 +17,9 @@ TetMesh* mesh;
 float diffusionTime = 0.001;
 
 std::vector<double> computeDistances(size_t startIndex, double t, bool useCUDA) {
+    std::vector<double> distances;
+    distances.reserve(mesh->vertices.size());
+
     std::vector<double> start(mesh->vertices.size(), 0.0);
     start[startIndex] = 1;
     if (t < 0) t = mesh->meanEdgeLength();
@@ -25,9 +28,9 @@ std::vector<double> computeDistances(size_t startIndex, double t, bool useCUDA) 
     Eigen::SparseMatrix<double> L    = mesh->weakLaplacian();
     Eigen::SparseMatrix<double> M    = mesh->massMatrix();
 
-    Eigen::VectorXd u;
+    Eigen::VectorXd u(mesh->vertices.size());
     if (useCUDA) {
-        u = cgSolve(u0, *mesh);
+        cgSolve(u, u0, *mesh);
     } else {
         Eigen::SparseMatrix<double> flow = M + t * L;
         Eigen::SimplicialLDLT<Eigen::SparseMatrix<double>> solver;
@@ -40,6 +43,7 @@ std::vector<double> computeDistances(size_t startIndex, double t, bool useCUDA) 
     std::vector<Vector3> tetXs;
     for (Tet t : mesh->tets) {
         std::array<Vector3, 4> vertexPositions = mesh->layOutIntrinsicTet(t);
+
         std::array<double, 4> tetU{u[t.verts[0]], u[t.verts[1]], u[t.verts[2]],
                                    u[t.verts[3]]};
         Vector3 tetGradU = grad(tetU, vertexPositions);
@@ -55,17 +59,20 @@ std::vector<double> computeDistances(size_t startIndex, double t, bool useCUDA) 
 
     Eigen::VectorXd ones = Eigen::VectorXd::Ones(divX.size());
     divX -= divX.dot(ones) * ones;
-    Eigen::VectorXd phi;
 
+    Eigen::VectorXd phi(mesh->vertices.size());
     if (useCUDA) {
-        phi = cgSolve(divX, *mesh);
+        cgSolve(phi, divX, *mesh);
     } else {
         Eigen::SimplicialLDLT<Eigen::SparseMatrix<double>> solver;
         solver.compute(L);
         phi = solver.solve(divX);
     }
 
-    std::vector<double> distances(phi.data(), phi.data() + phi.size());
+    for (int i = 0; i < phi.size(); ++i) {
+        distances[i] = phi[i];
+    }
+
     double minDist = distances[0];
     for (size_t i = 1; i < distances.size(); ++i) {
         minDist = fmin(minDist, distances[i]);

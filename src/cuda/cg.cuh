@@ -16,4 +16,4 @@ using namespace CompArch;
 
 // If t > 0, solves (M + tL) x = b
 // If t < 0, solves Lx = b
-Eigen::VectorXd  cgSolve(Eigen::VectorXd b, const TetMesh& mesh, double t = -1);
+void  cgSolve(Eigen::VectorXd& xOut, Eigen::VectorXd b, const TetMesh& mesh, double t = -1);

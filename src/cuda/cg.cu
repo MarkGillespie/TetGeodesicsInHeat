@@ -68,7 +68,7 @@ __global__ void compute_beta(float *out, float *r2, float *r, int n) {
 }
 
 
-Eigen::VectorXd cgSolve(Eigen::VectorXd bVec, const TetMesh& mesh, double t) {
+void cgSolve(Eigen::VectorXd& xOut, Eigen::VectorXd bVec, const TetMesh& mesh, double t) {
     float *x, *b, *r;
     float *d_x, *d_b, *d_p, *d_Ap, *d_r, *d_r2, *d_alpha, *d_beta;
     int N = bVec.size();
@@ -127,25 +127,15 @@ Eigen::VectorXd cgSolve(Eigen::VectorXd bVec, const TetMesh& mesh, double t) {
       cudaMemcpy(beta, d_beta, sizeof(float) * 1, cudaMemcpyDeviceToHost);
       float norm = 0;
       for (int i = 0; i < N; i++) {
-        norm += r[i] * r[i];
+        norm = fmax(norm, fabs(r[i]));
       }
       ++iter;
-      printf("r : %f, %f, %f, %f\n", r[0], r[1], r[2], r[3]);
-      printf("r2: %f\n", norm);
-      printf("p : %f, %f, %f, %f\n", p[0], p[1], p[2], p[3]);
-      printf("x : %f, %f, %f, %f\n", x[0], x[1], x[2], x[3]);
-      printf("α : %f\n", alpha[0]);
-      printf("β : %f\n", beta[0]);
       done = (norm < 1e-4) || (iter > 100);
-      printf("\n");
-
-      // done = true;
     }
 
     // Transfer data back to host memory
     cudaMemcpy(x, d_x, sizeof(float) * N, cudaMemcpyDeviceToHost);
 
-    Eigen::VectorXd xOut(N);
     // Verification
     for (int i = 0; i < N; ++i) {
       float result = x[i] + 1/3. * (x[(i+N-1)%N] + x[(i+1)%N]);
@@ -154,7 +144,6 @@ Eigen::VectorXd cgSolve(Eigen::VectorXd bVec, const TetMesh& mesh, double t) {
       }
       xOut[i] = x[i];
     }
-    printf("x[0] = %f\n", x[0]);
 
     // Deallocate device memory
     cudaFree(d_x);
@@ -170,5 +159,5 @@ Eigen::VectorXd cgSolve(Eigen::VectorXd bVec, const TetMesh& mesh, double t) {
     free(x);
     free(b);
 
-    return xOut;
+    return;
 }
