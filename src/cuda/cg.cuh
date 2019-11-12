@@ -12,9 +12,6 @@
 
 using namespace CompArch;
 
-#define NTHREAD 256
-#define NBLOCK  5000
-
 // If t > 0, solves (M + tL) x = b
 // If t < 0, solves Lx = b
 void  cgSolve(Eigen::VectorXd& xOut, Eigen::VectorXd b, const TetMesh& mesh, double t = -1);

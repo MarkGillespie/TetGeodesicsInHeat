@@ -16,6 +16,24 @@ TetMesh* mesh;
 
 float diffusionTime = 0.001;
 
+void testSolver(size_t startIndex, double t) {
+    std::vector<double> distances;
+    distances.reserve(mesh->vertices.size());
+
+    std::vector<double> start(mesh->vertices.size(), 0.0);
+    start[startIndex] = 1;
+    if (t < 0) t = mesh->meanEdgeLength();
+
+    Eigen::VectorXd u0 = Eigen::VectorXd::Map(start.data(), start.size());
+    Eigen::SparseMatrix<double> L    = mesh->weakLaplacian();
+    Eigen::SparseMatrix<double> M    = mesh->massMatrix();
+
+    Eigen::VectorXd u(mesh->vertices.size());
+    cout << "Solving for u" << endl;
+    cgSolve(u, u0, *mesh);
+    cout << "done" << endl;
+}
+
 std::vector<double> computeDistances(size_t startIndex, double t, bool useCUDA) {
     std::vector<double> distances;
     distances.reserve(mesh->vertices.size());
@@ -29,6 +47,7 @@ std::vector<double> computeDistances(size_t startIndex, double t, bool useCUDA) 
     Eigen::SparseMatrix<double> M    = mesh->massMatrix();
 
     Eigen::VectorXd u(mesh->vertices.size());
+    cout << "Solving for u" << endl;
     if (useCUDA) {
         cgSolve(u, u0, *mesh);
     } else {
@@ -61,6 +80,7 @@ std::vector<double> computeDistances(size_t startIndex, double t, bool useCUDA) 
     divX -= divX.dot(ones) * ones;
 
     Eigen::VectorXd phi(mesh->vertices.size());
+    cout << "Solving for phi" << endl;
     if (useCUDA) {
         cgSolve(phi, divX, *mesh);
     } else {
@@ -121,7 +141,8 @@ int main(int argc, char** argv) {
     //std::cout<< "Eigen: " << "nTets: " << mesh->tets.size()<<"\ttime: "<< duration <<"ms\n";
 
     start = std::clock();
-    computeDistances(0, -1, true);
+    //computeDistances(0, -1, true);
+    testSolver(0, -1);
     duration = ( std::clock() - start ) / (double) CLOCKS_PER_SEC * 1000;
     std::cout<< "CUDA:  " << "nTets: " << mesh->tets.size()<<"\ttime: "<< duration <<"ms\n";
 
