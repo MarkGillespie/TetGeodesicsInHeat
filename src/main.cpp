@@ -25,13 +25,21 @@ void testSolver(size_t startIndex, double t) {
     if (t < 0) t = mesh->meanEdgeLength();
 
     Eigen::VectorXd u0 = Eigen::VectorXd::Map(start.data(), start.size());
-    Eigen::SparseMatrix<double> L    = mesh->weakLaplacian();
-    Eigen::SparseMatrix<double> M    = mesh->massMatrix();
 
     Eigen::VectorXd u(mesh->vertices.size());
     cout << "Solving for u" << endl;
     cgSolve(u, u0, *mesh, t);
     cout << "done" << endl;
+
+    // Verify;
+    Eigen::SparseMatrix<double> L    = mesh->weakLaplacian();
+    Eigen::SparseMatrix<double> M    = mesh->massMatrix();
+    Eigen::SparseMatrix<double> flow = M + t * L;
+    //Eigen::SimplicialLDLT<Eigen::SparseMatrix<double>> solver;
+    //solver.compute(flow);
+    //Eigen::VectorXd uEigen = solver.solve(u0);
+
+    cout << "Residual: " << (flow * u - u0).norm() << endl;
 
     // Subtract out mean to solve laplace problem
     Eigen::VectorXd ones = Eigen::VectorXd::Ones(u0.size());
@@ -57,7 +65,7 @@ std::vector<double> computeDistances(size_t startIndex, double t, bool useCUDA) 
     Eigen::VectorXd u(mesh->vertices.size());
     cout << "Solving for u" << endl;
     if (useCUDA) {
-        cgSolve(u, u0, *mesh);
+        cgSolve(u, u0, *mesh, t);
     } else {
         Eigen::SparseMatrix<double> flow = M + t * L;
         Eigen::SimplicialLDLT<Eigen::SparseMatrix<double>> solver;
@@ -90,7 +98,7 @@ std::vector<double> computeDistances(size_t startIndex, double t, bool useCUDA) 
     Eigen::VectorXd phi(mesh->vertices.size());
     cout << "Solving for phi" << endl;
     if (useCUDA) {
-        cgSolve(phi, divX, *mesh);
+        cgSolve(phi, divX, *mesh, -1);
     } else {
         Eigen::SimplicialLDLT<Eigen::SparseMatrix<double>> solver;
         solver.compute(L);
@@ -149,8 +157,8 @@ int main(int argc, char** argv) {
     //std::cout<< "Eigen: " << "nTets: " << mesh->tets.size()<<"\ttime: "<< duration <<"ms\n";
 
     start = std::clock();
-    // computeDistances(0, -1, true);
-    testSolver(0, -1);
+    computeDistances(0, -1, true);
+    // testSolver(0, -1);
     duration = ( std::clock() - start ) / (double) CLOCKS_PER_SEC * 1000;
     std::cout<< "CUDA:  " << "nTets: " << mesh->tets.size()<<"\ttime: "<< duration <<"ms\n";
 

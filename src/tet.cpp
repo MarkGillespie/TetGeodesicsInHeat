@@ -78,7 +78,7 @@ std::array<double, 4> div(Vector3 X, std::array<Vector3, 4> p) {
 
 TetMesh::TetMesh() {}
 
-Eigen::SparseMatrix<double> TetMesh::massMatrix() {
+Eigen::SparseMatrix<double> TetMesh::massMatrix() const {
     Eigen::SparseMatrix<double> M(vertices.size(), vertices.size());
     std::vector<Eigen::Triplet<double>> tripletList;
 
@@ -90,7 +90,7 @@ Eigen::SparseMatrix<double> TetMesh::massMatrix() {
     return M;
 }
 
-Eigen::SparseMatrix<double> TetMesh::weakLaplacian() {
+Eigen::SparseMatrix<double> TetMesh::weakLaplacian() const {
     Eigen::SparseMatrix<double> cotanLaplacian(vertices.size(),
                                                vertices.size());
     std::vector<Eigen::Triplet<double>> tripletList;

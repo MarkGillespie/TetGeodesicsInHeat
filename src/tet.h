@@ -77,8 +77,8 @@ class TetMesh {
     std::vector<double> faceAreas;
     std::vector<double> partialEdgeCotanWeights;
 
-    Eigen::SparseMatrix<double> weakLaplacian();
-    Eigen::SparseMatrix<double> massMatrix();
+    Eigen::SparseMatrix<double> weakLaplacian() const;
+    Eigen::SparseMatrix<double> massMatrix() const;
 
     std::array<Vector3, 4> layOutIntrinsicTet(Tet t);
 
