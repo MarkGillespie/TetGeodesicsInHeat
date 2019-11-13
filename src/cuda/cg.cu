@@ -1,17 +1,18 @@
 #include "cg.cuh"
 
-#define NTHREAD 1
-#define NBLOCK  1
+#define NTHREAD 256
+#define NBLOCK  500
 
-__global__ void computeAp(float *out, float *p, float *cotans, int* neighbors, int meshStride, int n) {
+// Computes out = (M + tL)p
+__global__ void computeAp(float *out, float *p, float *cotans, int* neighbors, float* m, float t, int meshStride, int n) {
     int index = blockIdx.x * blockDim.x + threadIdx.x;
     int stride = gridDim.x * blockDim.x;
     for(int i = index; i < n; i += stride){
-        out[i] = 1e-12 * p[i];
+        out[i] = m[i] * p[i];
         for (int iN = 0; iN < meshStride; ++iN) {
             int neighbor = neighbors[iN];
             double weight = cotans[iN];
-            out[i] += weight * (p[i] - p[neighbor]);
+            out[i] += t * weight * (p[i] - p[neighbor]);
         }
     }
 }
@@ -63,14 +64,6 @@ __global__ void compute_beta(float *out, float *r2, float *r, int n) {
       r2[0] += r[i] * r[i];
     }
     out[0] *= r2[0];
-    r2[0] = 5;
-  }
-}
-
-__global__ void set_r2(float *r2) {
-  int index = blockIdx.x * blockDim.x + threadIdx.x;
-  if (index == 0) {
-    r2[0] = 5;
   }
 }
 
@@ -119,23 +112,29 @@ std::vector<std::unordered_map<size_t, double>> edgeWeights(const TetMesh& mesh)
 }
 
 void cgSolve(Eigen::VectorXd& xOut, Eigen::VectorXd bVec, const TetMesh& mesh, double t) {
-    float *x, *b, *r;
-    float *d_x, *d_b, *d_p, *d_Ap, *d_r, *d_r2, *d_alpha, *d_beta;
+    float *x, *b, *r, *cotans, *m;
+    float *d_x, *d_b, *d_p, *d_Ap, *d_r, *d_r2, *d_alpha, *d_beta, *d_cotans, *d_m;
+    int* neighbors, *d_neighbors;
     int N = bVec.size();
 
     // Allocate host memory
     x   = (float*)malloc(sizeof(float) * N);
     b   = (float*)malloc(sizeof(float) * N);
     r   = (float*)malloc(sizeof(float) * N);
+    m   = (float*)malloc(sizeof(float) * N);
 
     // Initialize host arrays
     for(int i = 0; i < N; i++){
-        x[i] = 0.13f;
+        x[i] = 0.0f;
         b[i] = bVec[i];
         r[i] = b[i];
         if (abs(b[i]) > 0) {
             printf("\tBIG B: i = %d, \t b = %f\n", i, b[i]);
         }
+        m[i] = (t < 0)?1e-12:mesh.vertexDualVolumes[i];
+    }
+    if (t < 0) {
+        t = 1;
     }
 
     // Allocate device memory
@@ -144,6 +143,7 @@ void cgSolve(Eigen::VectorXd& xOut, Eigen::VectorXd bVec, const TetMesh& mesh, d
     cudaMalloc((void**)&d_Ap,    sizeof(float) * N);
     cudaMalloc((void**)&d_p,     sizeof(float) * N);
     cudaMalloc((void**)&d_r,     sizeof(float) * N);
+    cudaMalloc((void**)&d_m,     sizeof(float) * N);
     cudaMalloc((void**)&d_alpha, sizeof(float) * 1);
     cudaMalloc((void**)&d_beta,  sizeof(float) * 1);
     cudaMalloc((void**)&d_r2,    sizeof(float) * 1);
@@ -152,14 +152,13 @@ void cgSolve(Eigen::VectorXd& xOut, Eigen::VectorXd bVec, const TetMesh& mesh, d
     cudaMemcpy(d_x, x, sizeof(float) * N, cudaMemcpyHostToDevice);
     cudaMemcpy(d_r, r, sizeof(float) * N, cudaMemcpyHostToDevice);
     cudaMemcpy(d_b, b, sizeof(float) * N, cudaMemcpyHostToDevice);
+    cudaMemcpy(d_m, m, sizeof(float) * N, cudaMemcpyHostToDevice);
 
     // Executing kernel
 
     bool done = false;
     int iter = 0;
 
-    float *cotans;
-    int *neighbors;
     int maxDegree = 0;
     std::vector<std::unordered_map<size_t, double>> weights = edgeWeights(mesh);
     for (size_t iV = 0; iV < mesh.vertices.size(); ++iV) {
@@ -185,9 +184,15 @@ void cgSolve(Eigen::VectorXd& xOut, Eigen::VectorXd bVec, const TetMesh& mesh, d
     }
     printf("max degree: %d\n", maxDegree);
 
+    cudaMalloc((void**)&d_neighbors, sizeof(int)   * maxDegree * N);
+    cudaMalloc((void**)&d_cotans,    sizeof(float) * maxDegree * N);
+
+    cudaMemcpy(d_neighbors, neighbors, sizeof(int)   * maxDegree * N, cudaMemcpyHostToDevice);
+    cudaMemcpy(d_cotans,    cotans,    sizeof(float) * maxDegree * N, cudaMemcpyHostToDevice);
+
     //computeAp<<<NBLOCK,NTHREAD>>>(d_Ap, d_x, cotans, neighbors, maxDegree, N);
     //vector_sub<<<NBLOCK,NTHREAD>>>(d_r, d_b, d_Ap, N);
-    //vector_cpy<<<NBLOCK,NTHREAD>>>(d_p, d_r, N);
+    vector_cpy<<<NBLOCK,NTHREAD>>>(d_p, d_r, N);
 
     float *Ap = (float*)malloc(sizeof(float) * N);
     cudaMemcpy(r, d_r, sizeof(float) * N, cudaMemcpyDeviceToHost);
@@ -199,13 +204,12 @@ void cgSolve(Eigen::VectorXd& xOut, Eigen::VectorXd bVec, const TetMesh& mesh, d
     printf("\n");
     while (!done) {
       for (int i = 0; i < 1; ++i) {
-        // computeAp<<<NBLOCK,NTHREAD>>>(d_Ap, d_p, cotans, neighbors, maxDegree, N);
-        // compute_alpha<<<NBLOCK, NTHREAD>>>(d_alpha, d_r2, d_r, d_p, d_Ap, N);
-        // update_x_r<<<NBLOCK, NTHREAD>>>(d_x, d_r, d_alpha, d_p, d_Ap, N);
-        compute_beta<<<NBLOCK, NTHREAD>>>(d_beta, d_r2, d_r, N);
-        update_p<<<NBLOCK, NTHREAD>>>(d_p, d_beta, d_r, N);
+         computeAp<<<NBLOCK,NTHREAD>>>(d_Ap, d_p, d_cotans, d_neighbors, d_m, t, maxDegree, N);
+         compute_alpha<<<NBLOCK, NTHREAD>>>(d_alpha, d_r2, d_r, d_p, d_Ap, N);
+         update_x_r<<<NBLOCK, NTHREAD>>>(d_x, d_r, d_alpha, d_p, d_Ap, N);
+         compute_beta<<<NBLOCK, NTHREAD>>>(d_beta, d_r2, d_r, N);
+         update_p<<<NBLOCK, NTHREAD>>>(d_p, d_beta, d_r, N);
       }
-      compute_beta<<<NBLOCK, NTHREAD>>>(d_beta, d_r2, d_r, N);
 
       // Transfer data back to host memory
       cudaMemcpy(r, d_r, sizeof(float) * N, cudaMemcpyDeviceToHost);
@@ -213,9 +217,9 @@ void cgSolve(Eigen::VectorXd& xOut, Eigen::VectorXd bVec, const TetMesh& mesh, d
       float *alpha = new float[1];
       //float *beta = new float[1];
       float *r2 = (float*)malloc(sizeof(float));
-      //float *p = new float[N];
-      //cudaMemcpy(p,     d_p,     sizeof(float) * N, cudaMemcpyDeviceToHost);
-      //cudaMemcpy(x,     d_x,     sizeof(float) * N, cudaMemcpyDeviceToHost);
+      float *p = new float[N];
+      cudaMemcpy(p,     d_p,     sizeof(float) * N, cudaMemcpyDeviceToHost);
+      cudaMemcpy(x,     d_x,     sizeof(float) * N, cudaMemcpyDeviceToHost);
       cudaMemcpy(r2,    d_r2,    sizeof(float) * 1, cudaMemcpyDeviceToHost);
       cudaMemcpy(alpha, d_alpha, sizeof(float) * 1, cudaMemcpyDeviceToHost);
       //cudaMemcpy(beta,  d_beta,  sizeof(float) * 1, cudaMemcpyDeviceToHost);
@@ -224,9 +228,10 @@ void cgSolve(Eigen::VectorXd& xOut, Eigen::VectorXd bVec, const TetMesh& mesh, d
         //norm = fmax(norm, r[i] * r[i]);
       //}
       ++iter;
-      printf("alpha: %f \t r^2  : %f\n", alpha[0], r2[0]);
-      //printf("x[0] : %f \t x[1] : %f \t x[2] : %f\n", x[0], x[1], x[2]);
-      //printf("p[0] : %f \t p[1] : %f \t p[2] : %f\n", p[0], p[1], p[2]);
+      //printf("r2  : %f\n", r2[0]);
+      printf("alpha: %f \t r2  : %f\n", alpha[0], r2[0]);
+      printf("x[0] : %f \t x[1] : %f \t x[2] : %f\n", x[0], x[1], x[2]);
+      printf("p[0] : %f \t p[1] : %f \t p[2] : %f\n", p[0], p[1], p[2]);
       printf("r[0] : %f \t r[1] : %f \t r[2] : %f\n", r[0], r[1], r[2]);
       //printf("norm: %f\n", norm);
       //printf("\n");
@@ -240,11 +245,11 @@ void cgSolve(Eigen::VectorXd& xOut, Eigen::VectorXd bVec, const TetMesh& mesh, d
 
     // Verification
     for (int i = 0; i < N; ++i) {
-      float result = 1e-12;
+      float result = m[i] * x[i];
       for (int iN = 0; iN < maxDegree; ++iN) {
           int neighbor = neighbors[iN];
           double weight = cotans[iN];
-          result += weight * (x[i] - x[neighbor]);
+          result += t * weight * (x[i] - x[neighbor]);
       }
       if (abs(result - b[i]) > 1e-4) {
           printf("err: vertex %d result[%d] = %f, b[%d] = %f, x[%d] = %f\n", i, i, result, i, b[i], i, x[i]);

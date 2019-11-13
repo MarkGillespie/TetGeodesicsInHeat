@@ -30,7 +30,7 @@ void testSolver(size_t startIndex, double t) {
 
     Eigen::VectorXd u(mesh->vertices.size());
     cout << "Solving for u" << endl;
-    cgSolve(u, u0, *mesh);
+    cgSolve(u, u0, *mesh, t);
     cout << "done" << endl;
 }
 
