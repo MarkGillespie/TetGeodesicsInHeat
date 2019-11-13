@@ -10,13 +10,14 @@ __global__ void computeAp(float *out, float *p, float *cotans, int* neighbors, f
     for(int i = index; i < n; i += stride){
         out[i] = m[i] * p[i];
         for (int iN = 0; iN < meshStride; ++iN) {
-            int neighbor = neighbors[iN];
-            double weight = cotans[iN];
+            int neighbor = neighbors[i * meshStride + iN];
+            double weight = cotans[i * meshStride + iN];
             out[i] += t * weight * (p[i] - p[neighbor]);
         }
     }
 }
 
+// Computes out = a-b
 __global__ void vector_sub(float *out, float *a, float *b, int n) {
   int index = blockIdx.x * blockDim.x + threadIdx.x;
   int stride = gridDim.x * blockDim.x;
@@ -25,6 +26,7 @@ __global__ void vector_sub(float *out, float *a, float *b, int n) {
   }
 }
 
+// Copies a into out
 __global__ void vector_cpy(float *out, float *a, int n) {
   int index = blockIdx.x * blockDim.x + threadIdx.x;
   int stride = gridDim.x * blockDim.x;
@@ -33,6 +35,7 @@ __global__ void vector_cpy(float *out, float *a, int n) {
   }
 }
 
+// Computes alpha = dot(r, r) / dot(p, Ap). Returns dot(r, r) as r2
 __global__ void compute_alpha(float *out, float *r2, float *r, float *p, float *Ap, int n) {
   int index = blockIdx.x * blockDim.x + threadIdx.x;
   if (index == 0) {
@@ -46,6 +49,8 @@ __global__ void compute_alpha(float *out, float *r2, float *r, float *p, float *
   }
 }
 
+// x += alpha p
+// r -= alpha Ap
 __global__ void update_x_r(float* x, float* r, float* alpha, float* p, float* Ap, int n) {
   int index = blockIdx.x * blockDim.x + threadIdx.x;
   int stride = gridDim.x * blockDim.x;
@@ -55,6 +60,9 @@ __global__ void update_x_r(float* x, float* r, float* alpha, float* p, float* Ap
   }
 }
 
+// Computes beta = dot(r, r) / r2
+// where r2 is the old value of dot(r, r).
+// Also updates r2 to be the new value of dot(r, r)
 __global__ void compute_beta(float *out, float *r2, float *r, int n) {
   int index = blockIdx.x * blockDim.x + threadIdx.x;
   if (index == 0) {
@@ -67,17 +75,17 @@ __global__ void compute_beta(float *out, float *r2, float *r, int n) {
   }
 }
 
-// Returns p = beta * p + r
+// Computes p = beta * p + r
 __global__ void update_p(float* p, float *beta, float *r, int n) {
   int index = blockIdx.x * blockDim.x + threadIdx.x;
   int stride = gridDim.x * blockDim.x;
   for(int i = index; i < n; i += stride){
-      p[i] *= beta[0];
-      p[i] += r[i];
-    //p[i] = beta[0] * p[i] + r[i];
+    p[i] = beta[0] * p[i] + r[i];
   }
 }
 
+// For each vertex, returns a map which maps the indices of the vertex's neighbors to the
+// entries of the laplacian corresponding to those edges
 std::vector<std::unordered_map<size_t, double>> edgeWeights(const TetMesh& mesh) {
     std::vector<std::unordered_map<size_t, double>> weights;
     for (size_t iV = 0; iV < mesh.vertices.size(); ++iV) {
@@ -105,12 +113,13 @@ std::vector<std::unordered_map<size_t, double>> edgeWeights(const TetMesh& mesh)
         } else {
             findDst->second += weight;
         }
-
     }
 
     return weights;
 }
 
+// If t < 0, solve Lx = b (realy we relax to (L + 1e-12)x = b to ensure our system is positive definite
+// If t >= 0, solve (M + tL)x = b, where M is the mass matrix and L is the laplacian
 void cgSolve(Eigen::VectorXd& xOut, Eigen::VectorXd bVec, const TetMesh& mesh, double t) {
     float *x, *b, *r, *cotans, *m;
     float *d_x, *d_b, *d_p, *d_Ap, *d_r, *d_r2, *d_alpha, *d_beta, *d_cotans, *d_m;
@@ -128,9 +137,6 @@ void cgSolve(Eigen::VectorXd& xOut, Eigen::VectorXd bVec, const TetMesh& mesh, d
         x[i] = 0.0f;
         b[i] = bVec[i];
         r[i] = b[i];
-        if (abs(b[i]) > 0) {
-            printf("\tBIG B: i = %d, \t b = %f\n", i, b[i]);
-        }
         m[i] = (t < 0)?1e-12:mesh.vertexDualVolumes[i];
     }
     if (t < 0) {
@@ -182,6 +188,7 @@ void cgSolve(Eigen::VectorXd& xOut, Eigen::VectorXd bVec, const TetMesh& mesh, d
             cotans[iV * maxDegree + iN] = 0;
         }
     }
+
     printf("max degree: %d\n", maxDegree);
 
     cudaMalloc((void**)&d_neighbors, sizeof(int)   * maxDegree * N);
@@ -203,7 +210,7 @@ void cgSolve(Eigen::VectorXd& xOut, Eigen::VectorXd bVec, const TetMesh& mesh, d
     printf("Ap[0] : %f \t Ap[1] : %f \t Ap[2] : %f\n", Ap[0], Ap[1], Ap[2]);
     printf("\n");
     while (!done) {
-      for (int i = 0; i < 1; ++i) {
+      for (int i = 0; i < 100; ++i) {
          computeAp<<<NBLOCK,NTHREAD>>>(d_Ap, d_p, d_cotans, d_neighbors, d_m, t, maxDegree, N);
          compute_alpha<<<NBLOCK, NTHREAD>>>(d_alpha, d_r2, d_r, d_p, d_Ap, N);
          update_x_r<<<NBLOCK, NTHREAD>>>(d_x, d_r, d_alpha, d_p, d_Ap, N);
@@ -230,14 +237,14 @@ void cgSolve(Eigen::VectorXd& xOut, Eigen::VectorXd bVec, const TetMesh& mesh, d
       ++iter;
       //printf("r2  : %f\n", r2[0]);
       printf("alpha: %f \t r2  : %f\n", alpha[0], r2[0]);
-      printf("x[0] : %f \t x[1] : %f \t x[2] : %f\n", x[0], x[1], x[2]);
-      printf("p[0] : %f \t p[1] : %f \t p[2] : %f\n", p[0], p[1], p[2]);
-      printf("r[0] : %f \t r[1] : %f \t r[2] : %f\n", r[0], r[1], r[2]);
+      printf("x[0] : %.10e \t x[1] : %.10e \t x[2] : %.10e\n", x[0], x[1], x[2]);
+      printf("p[0] : %.10e \t p[1] : %.10e \t p[2] : %.10e\n", p[0], p[1], p[2]);
+      printf("r[0] : %.10e \t r[1] : %.10e \t r[2] : %.10e\n", r[0], r[1], r[2]);
       //printf("norm: %f\n", norm);
       //printf("\n");
       //fflush(stdout);
-      //done = (norm < 1e-4) || (iter > 0);
-      done = true;
+      done = (r2[0] < 1e-4) || (iter > 100);
+      //done = true;
     }
 
     // Transfer data back to host memory
@@ -247,8 +254,8 @@ void cgSolve(Eigen::VectorXd& xOut, Eigen::VectorXd bVec, const TetMesh& mesh, d
     for (int i = 0; i < N; ++i) {
       float result = m[i] * x[i];
       for (int iN = 0; iN < maxDegree; ++iN) {
-          int neighbor = neighbors[iN];
-          double weight = cotans[iN];
+          int neighbor  = neighbors[i * maxDegree + iN];
+          double weight =    cotans[i * maxDegree + iN];
           result += t * weight * (x[i] - x[neighbor]);
       }
       if (abs(result - b[i]) > 1e-4) {

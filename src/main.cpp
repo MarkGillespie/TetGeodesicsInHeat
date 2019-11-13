@@ -32,6 +32,14 @@ void testSolver(size_t startIndex, double t) {
     cout << "Solving for u" << endl;
     cgSolve(u, u0, *mesh, t);
     cout << "done" << endl;
+
+    // Subtract out mean to solve laplace problem
+    Eigen::VectorXd ones = Eigen::VectorXd::Ones(u0.size());
+    u0 -= u0.dot(ones) * ones;
+
+    cout << "Solving for phi" << endl;
+    cgSolve(u, u0, *mesh, -1);
+    cout << "done" << endl;
 }
 
 std::vector<double> computeDistances(size_t startIndex, double t, bool useCUDA) {
@@ -141,7 +149,7 @@ int main(int argc, char** argv) {
     //std::cout<< "Eigen: " << "nTets: " << mesh->tets.size()<<"\ttime: "<< duration <<"ms\n";
 
     start = std::clock();
-    //computeDistances(0, -1, true);
+    // computeDistances(0, -1, true);
     testSolver(0, -1);
     duration = ( std::clock() - start ) / (double) CLOCKS_PER_SEC * 1000;
     std::cout<< "CUDA:  " << "nTets: " << mesh->tets.size()<<"\ttime: "<< duration <<"ms\n";
