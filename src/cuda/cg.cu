@@ -4,7 +4,7 @@
 #define NBLOCK  500
 
 // Computes out = (M + tL)p
-__global__ void computeAp(float *out, float *p, float *cotans, int* neighbors, float* m, float t, int meshStride, int n) {
+__global__ void computeAp(double *out, double *p, double *cotans, int* neighbors, double* m, double t, int meshStride, int n) {
     int index = blockIdx.x * blockDim.x + threadIdx.x;
     int stride = gridDim.x * blockDim.x;
     for(int i = index; i < n; i += stride){
@@ -18,7 +18,7 @@ __global__ void computeAp(float *out, float *p, float *cotans, int* neighbors, f
 }
 
 // Computes out = a-b
-__global__ void vector_sub(float *out, float *a, float *b, int n) {
+__global__ void vector_sub(double *out, double *a, double *b, int n) {
   int index = blockIdx.x * blockDim.x + threadIdx.x;
   int stride = gridDim.x * blockDim.x;
   for(int i = index; i < n; i += stride){
@@ -27,7 +27,7 @@ __global__ void vector_sub(float *out, float *a, float *b, int n) {
 }
 
 // Copies a into out
-__global__ void vector_cpy(float *out, float *a, int n) {
+__global__ void vector_cpy(double *out, double *a, int n) {
   int index = blockIdx.x * blockDim.x + threadIdx.x;
   int stride = gridDim.x * blockDim.x;
   for(int i = index; i < n; i += stride){
@@ -36,11 +36,11 @@ __global__ void vector_cpy(float *out, float *a, int n) {
 }
 
 // Computes alpha = dot(r, r) / dot(p, Ap). Returns dot(r, r) as r2
-__global__ void compute_alpha(float *out, float *r2, float *r, float *p, float *Ap, int n) {
+__global__ void compute_alpha(double *out, double *r2, double *r, double *p, double *Ap, int n) {
   int index = blockIdx.x * blockDim.x + threadIdx.x;
   if (index == 0) {
     r2[0] = 0;
-    float denom = 0;
+    double denom = 0;
     for (int i = 0; i < n; i += 1) {
       r2[0] += r[i] * r[i];
       denom += p[i] * Ap[i];
@@ -51,7 +51,7 @@ __global__ void compute_alpha(float *out, float *r2, float *r, float *p, float *
 
 // x += alpha p
 // r -= alpha Ap
-__global__ void update_x_r(float* x, float* r, float* alpha, float* p, float* Ap, int n) {
+__global__ void update_x_r(double* x, double* r, double* alpha, double* p, double* Ap, int n) {
   int index = blockIdx.x * blockDim.x + threadIdx.x;
   int stride = gridDim.x * blockDim.x;
   for(int i = index; i < n; i += stride){
@@ -63,7 +63,7 @@ __global__ void update_x_r(float* x, float* r, float* alpha, float* p, float* Ap
 // Computes beta = dot(r, r) / r2
 // where r2 is the old value of dot(r, r).
 // Also updates r2 to be the new value of dot(r, r)
-__global__ void compute_beta(float *out, float *r2, float *r, int n) {
+__global__ void compute_beta(double *out, double *r2, double *r, int n) {
   int index = blockIdx.x * blockDim.x + threadIdx.x;
   if (index == 0) {
     out[0] = 1/r2[0];
@@ -76,7 +76,7 @@ __global__ void compute_beta(float *out, float *r2, float *r, int n) {
 }
 
 // Computes p = beta * p + r
-__global__ void update_p(float* p, float *beta, float *r, int n) {
+__global__ void update_p(double* p, double *beta, double *r, int n) {
   int index = blockIdx.x * blockDim.x + threadIdx.x;
   int stride = gridDim.x * blockDim.x;
   for(int i = index; i < n; i += stride){
@@ -109,9 +109,9 @@ std::vector<std::unordered_map<size_t, double>> edgeWeights(const TetMesh& mesh)
 // If t < 0, solve Lx = b (realy we relax to (L + 1e-12)x = b to ensure our
 // system is positive definite
 // If t >= 0, solve (M + tL)x = b, where M is the mass matrix and L is the laplacian
-void cgSolve(Eigen::VectorXd& xOut, Eigen::VectorXd bVec, const TetMesh& mesh, double t) {
-    float *x, *b, *r, *cotans, *m;
-    float *d_x, *d_b, *d_p, *d_Ap, *d_r, *d_r2, *d_alpha, *d_beta, *d_cotans, *d_m;
+void cgSolve(Eigen::VectorXd& xOut, Eigen::VectorXd bVec, const TetMesh& mesh, double tol, double t) {
+    double *x, *b, *r, *cotans, *m;
+    double *d_x, *d_b, *d_p, *d_Ap, *d_r, *d_r2, *d_alpha, *d_beta, *d_cotans, *d_m;
     int* neighbors, *d_neighbors;
     int N = bVec.size();
 
@@ -123,11 +123,11 @@ void cgSolve(Eigen::VectorXd& xOut, Eigen::VectorXd bVec, const TetMesh& mesh, d
     }
 
     // Allocate host memory
-    x         = (float*) malloc(sizeof(float) * N);
-    b         = (float*) malloc(sizeof(float) * N);
-    r         = (float*) malloc(sizeof(float) * N);
-    m         = (float*) malloc(sizeof(float) * N);
-    cotans    = (float*) malloc(sizeof(float) * N * maxDegree);
+    x         = (double*) malloc(sizeof(double) * N);
+    b         = (double*) malloc(sizeof(double) * N);
+    r         = (double*) malloc(sizeof(double) * N);
+    m         = (double*) malloc(sizeof(double) * N);
+    cotans    = (double*) malloc(sizeof(double) * N * maxDegree);
     neighbors = (int*  ) malloc(sizeof(int  ) * N * maxDegree);
 
     // Initialize host arrays
@@ -135,8 +135,8 @@ void cgSolve(Eigen::VectorXd& xOut, Eigen::VectorXd bVec, const TetMesh& mesh, d
         x[i] = 0.0f;
         b[i] = bVec[i];
         r[i] = b[i];
-        //m[i] = (t < 0)?1e-12:mesh.vertexDualVolumes[i];
-        m[i] = (t < 0)?1:mesh.vertexDualVolumes[i];
+        m[i] = (t < 0)?1e-12:mesh.vertexDualVolumes[i];
+        //m[i] = (t < 0)?1:mesh.vertexDualVolumes[i];
     }
     if (t < 0) t = 1;
 
@@ -172,25 +172,25 @@ void cgSolve(Eigen::VectorXd& xOut, Eigen::VectorXd bVec, const TetMesh& mesh, d
     }
 
     // Allocate device memory
-    cudaMalloc((void**)&d_x,         sizeof(float) * N);
-    cudaMalloc((void**)&d_b,         sizeof(float) * N);
-    cudaMalloc((void**)&d_Ap,        sizeof(float) * N);
-    cudaMalloc((void**)&d_p,         sizeof(float) * N);
-    cudaMalloc((void**)&d_r,         sizeof(float) * N);
-    cudaMalloc((void**)&d_m,         sizeof(float) * N);
+    cudaMalloc((void**)&d_x,         sizeof(double) * N);
+    cudaMalloc((void**)&d_b,         sizeof(double) * N);
+    cudaMalloc((void**)&d_Ap,        sizeof(double) * N);
+    cudaMalloc((void**)&d_p,         sizeof(double) * N);
+    cudaMalloc((void**)&d_r,         sizeof(double) * N);
+    cudaMalloc((void**)&d_m,         sizeof(double) * N);
     cudaMalloc((void**)&d_neighbors, sizeof(int  ) * N * maxDegree);
-    cudaMalloc((void**)&d_cotans,    sizeof(float) * N * maxDegree);
-    cudaMalloc((void**)&d_alpha,     sizeof(float) * 1);
-    cudaMalloc((void**)&d_beta,      sizeof(float) * 1);
-    cudaMalloc((void**)&d_r2,        sizeof(float) * 1);
+    cudaMalloc((void**)&d_cotans,    sizeof(double) * N * maxDegree);
+    cudaMalloc((void**)&d_alpha,     sizeof(double) * 1);
+    cudaMalloc((void**)&d_beta,      sizeof(double) * 1);
+    cudaMalloc((void**)&d_r2,        sizeof(double) * 1);
 
     // Transfer data from host to device memory
-    cudaMemcpy(d_x,         x,         sizeof(float) * N,             cudaMemcpyHostToDevice);
-    cudaMemcpy(d_r,         r,         sizeof(float) * N,             cudaMemcpyHostToDevice);
-    cudaMemcpy(d_b,         b,         sizeof(float) * N,             cudaMemcpyHostToDevice);
-    cudaMemcpy(d_m,         m,         sizeof(float) * N,             cudaMemcpyHostToDevice);
+    cudaMemcpy(d_x,         x,         sizeof(double) * N,             cudaMemcpyHostToDevice);
+    cudaMemcpy(d_r,         r,         sizeof(double) * N,             cudaMemcpyHostToDevice);
+    cudaMemcpy(d_b,         b,         sizeof(double) * N,             cudaMemcpyHostToDevice);
+    cudaMemcpy(d_m,         m,         sizeof(double) * N,             cudaMemcpyHostToDevice);
     cudaMemcpy(d_neighbors, neighbors, sizeof(int  ) * N * maxDegree, cudaMemcpyHostToDevice);
-    cudaMemcpy(d_cotans,    cotans,    sizeof(float) * N * maxDegree, cudaMemcpyHostToDevice);
+    cudaMemcpy(d_cotans,    cotans,    sizeof(double) * N * maxDegree, cudaMemcpyHostToDevice);
 
     bool done = false;
     int iter = 0;
@@ -199,21 +199,21 @@ void cgSolve(Eigen::VectorXd& xOut, Eigen::VectorXd bVec, const TetMesh& mesh, d
     vector_sub<<<NBLOCK,NTHREAD>>>(d_r, d_b, d_Ap, N);
     vector_cpy<<<NBLOCK,NTHREAD>>>(d_p, d_r, N);
     {
-      cudaMemcpy(r, d_r, sizeof(float) * N, cudaMemcpyDeviceToHost);
+      cudaMemcpy(r, d_r, sizeof(double) * N, cudaMemcpyDeviceToHost);
 
-      float *alpha = new float[1];
-      //float *beta = new float[1];
-      float *r2 = (float*)malloc(sizeof(float));
-      float *p = new float[N];
-      float *Ap = new float[N];
-      cudaMemcpy(p,     d_p,     sizeof(float) * N, cudaMemcpyDeviceToHost);
-      cudaMemcpy(Ap,    d_Ap,    sizeof(float) * N, cudaMemcpyDeviceToHost);
-      cudaMemcpy(x,     d_x,     sizeof(float) * N, cudaMemcpyDeviceToHost);
-      cudaMemcpy(b,     d_b,     sizeof(float) * N, cudaMemcpyDeviceToHost);
-      cudaMemcpy(r2,    d_r2,    sizeof(float) * 1, cudaMemcpyDeviceToHost);
-      cudaMemcpy(alpha, d_alpha, sizeof(float) * 1, cudaMemcpyDeviceToHost);
-      //cudaMemcpy(beta,  d_beta,  sizeof(float) * 1, cudaMemcpyDeviceToHost);
-      float norm = 0;
+      double *alpha = new double[1];
+      //double *beta = new double[1];
+      double *r2 = (double*)malloc(sizeof(double));
+      double *p = new double[N];
+      double *Ap = new double[N];
+      cudaMemcpy(p,     d_p,     sizeof(double) * N, cudaMemcpyDeviceToHost);
+      cudaMemcpy(Ap,    d_Ap,    sizeof(double) * N, cudaMemcpyDeviceToHost);
+      cudaMemcpy(x,     d_x,     sizeof(double) * N, cudaMemcpyDeviceToHost);
+      cudaMemcpy(b,     d_b,     sizeof(double) * N, cudaMemcpyDeviceToHost);
+      cudaMemcpy(r2,    d_r2,    sizeof(double) * 1, cudaMemcpyDeviceToHost);
+      cudaMemcpy(alpha, d_alpha, sizeof(double) * 1, cudaMemcpyDeviceToHost);
+      //cudaMemcpy(beta,  d_beta,  sizeof(double) * 1, cudaMemcpyDeviceToHost);
+      double norm = 0;
       for (int i = 0; i < N; i++) {
         norm = fmax(norm, fabs(r[i]));
       }
@@ -236,18 +236,18 @@ void cgSolve(Eigen::VectorXd& xOut, Eigen::VectorXd bVec, const TetMesh& mesh, d
       }
 
       // Transfer data back to host memory
-      cudaMemcpy(r, d_r, sizeof(float) * N, cudaMemcpyDeviceToHost);
+      cudaMemcpy(r, d_r, sizeof(double) * N, cudaMemcpyDeviceToHost);
 
-      float *alpha = new float[1];
-      //float *beta = new float[1];
-      float *r2 = (float*)malloc(sizeof(float));
-      float *p = new float[N];
-      cudaMemcpy(p,     d_p,     sizeof(float) * N, cudaMemcpyDeviceToHost);
-      cudaMemcpy(x,     d_x,     sizeof(float) * N, cudaMemcpyDeviceToHost);
-      cudaMemcpy(r2,    d_r2,    sizeof(float) * 1, cudaMemcpyDeviceToHost);
-      cudaMemcpy(alpha, d_alpha, sizeof(float) * 1, cudaMemcpyDeviceToHost);
-      //cudaMemcpy(beta,  d_beta,  sizeof(float) * 1, cudaMemcpyDeviceToHost);
-      float norm = 0;
+      double *alpha = new double[1];
+      //double *beta = new double[1];
+      double *r2 = (double*)malloc(sizeof(double));
+      double *p = new double[N];
+      cudaMemcpy(p,     d_p,     sizeof(double) * N, cudaMemcpyDeviceToHost);
+      cudaMemcpy(x,     d_x,     sizeof(double) * N, cudaMemcpyDeviceToHost);
+      cudaMemcpy(r2,    d_r2,    sizeof(double) * 1, cudaMemcpyDeviceToHost);
+      cudaMemcpy(alpha, d_alpha, sizeof(double) * 1, cudaMemcpyDeviceToHost);
+      //cudaMemcpy(beta,  d_beta,  sizeof(double) * 1, cudaMemcpyDeviceToHost);
+      double norm = 0;
       for (int i = 0; i < N; i++) {
         norm = fmax(norm, fabs(r[i]));
       }
@@ -260,24 +260,24 @@ void cgSolve(Eigen::VectorXd& xOut, Eigen::VectorXd bVec, const TetMesh& mesh, d
       //printf("norm: %f\n", norm);
       //printf("\n");
       //fflush(stdout);
-      done = (norm < 1e-8) || (iter > 100);
+      done = (norm < tol) || (iter > 100);
       //done = true;
     }
 
     // Transfer data back to host memory
-    cudaMemcpy(x, d_x, sizeof(float) * N, cudaMemcpyDeviceToHost);
+    cudaMemcpy(x, d_x, sizeof(double) * N, cudaMemcpyDeviceToHost);
 
     // Verification
     for (int i = 0; i < N; ++i) {
-      float result = m[i] * x[i];
+      double result = m[i] * x[i];
       for (int iN = 0; iN < maxDegree; ++iN) {
           int neighbor  = neighbors[i * maxDegree + iN];
           double weight =    cotans[i * maxDegree + iN];
           result += t * weight * (x[i] - x[neighbor]);
       }
-      if (abs(result - b[i]) > 1e-4) {
+      if (abs(result - b[i]) > tol) {
           printf("err: vertex %d result[%d] = %f, b[%d] = %f, x[%d] = %f, err=%.10e\n", i, i, result, i, b[i], i, x[i], result-b[i]);
-          printf("iter: %d\n", iter);
+          //printf("iter: %d\n", iter);
       }
       xOut[i] = x[i];
     }

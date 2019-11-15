@@ -28,7 +28,7 @@ void testSolver(size_t startIndex, double t) {
 
     Eigen::VectorXd u(mesh->vertices.size());
     cout << "Solving for u" << endl;
-    cgSolve(u, u0, *mesh, t);
+    cgSolve(u, u0, *mesh, 1e-8, t);
     cout << "done" << endl;
 
     // Verify;
@@ -46,7 +46,8 @@ void testSolver(size_t startIndex, double t) {
     u0 -= u0.dot(ones) * ones;
 
     cout << "Solving for phi" << endl;
-    cgSolve(u, u0, *mesh, -1);
+    cgSolve(u, u0, *mesh, 1e-8, -1);
+    cout << "Residual: " << (L * u - u0).norm() << endl;
     cout << "done" << endl;
 }
 
@@ -64,10 +65,11 @@ std::vector<double> computeDistances(size_t startIndex, double t, bool useCUDA) 
 
     Eigen::VectorXd u(mesh->vertices.size());
     cout << "Solving for u" << endl;
+    Eigen::SparseMatrix<double> flow = M + t * L;
     if (useCUDA) {
-        cgSolve(u, u0, *mesh, t);
+        cgSolve(u, u0, *mesh, 1e-8, t);
+        cout << "Residual: " << (flow * u  - u0).norm() << endl;
     } else {
-        Eigen::SparseMatrix<double> flow = M + t * L;
         Eigen::SimplicialLDLT<Eigen::SparseMatrix<double>> solver;
         solver.compute(flow);
         u = solver.solve(u0);
@@ -98,7 +100,8 @@ std::vector<double> computeDistances(size_t startIndex, double t, bool useCUDA) 
     Eigen::VectorXd phi(mesh->vertices.size());
     cout << "Solving for phi" << endl;
     if (useCUDA) {
-        cgSolve(phi, divX, *mesh, -1);
+        cgSolve(phi, divX, *mesh, 1e-8, -1);
+        cout << "Residual: " << (L * phi - divX).norm() << endl;
     } else {
         Eigen::SimplicialLDLT<Eigen::SparseMatrix<double>> solver;
         solver.compute(L);
@@ -158,7 +161,7 @@ int main(int argc, char** argv) {
 
     start = std::clock();
     computeDistances(0, -1, true);
-    // testSolver(0, -1);
+    //testSolver(0, -1);
     duration = ( std::clock() - start ) / (double) CLOCKS_PER_SEC * 1000;
     std::cout<< "CUDA:  " << "nTets: " << mesh->tets.size()<<"\ttime: "<< duration <<"ms\n";
 

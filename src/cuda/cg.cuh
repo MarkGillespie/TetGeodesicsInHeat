@@ -12,7 +12,6 @@
 
 using namespace CompArch;
 
-__global__ void set_r2(float *r2);
 // If t > 0, solves (M + tL) x = b
 // If t < 0, solves Lx = b
-void  cgSolve(Eigen::VectorXd& xOut, Eigen::VectorXd b, const TetMesh& mesh, double t = -1);
+void  cgSolve(Eigen::VectorXd& xOut, Eigen::VectorXd b, const TetMesh& mesh, double tol=1e-8, double t = -1);
