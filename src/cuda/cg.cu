@@ -177,7 +177,7 @@ void cgSolve(Eigen::VectorXd& xOut, Eigen::VectorXd bVec, const TetMesh& mesh, d
     cudaMalloc((void**)&d_p,         sizeof(double) * N);
     cudaMalloc((void**)&d_r,         sizeof(double) * N);
     cudaMalloc((void**)&d_m,         sizeof(double) * N);
-    cudaMalloc((void**)&d_neighbors, sizeof(int  ) * N * maxDegree);
+    cudaMalloc((void**)&d_neighbors, sizeof(int   ) * N * maxDegree);
     cudaMalloc((void**)&d_cotans,    sizeof(double) * N * maxDegree);
     cudaMalloc((void**)&d_alpha,     sizeof(double) * 1);
     cudaMalloc((void**)&d_beta,      sizeof(double) * 1);
