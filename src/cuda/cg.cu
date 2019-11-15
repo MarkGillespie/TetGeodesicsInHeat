@@ -136,7 +136,6 @@ void cgSolve(Eigen::VectorXd& xOut, Eigen::VectorXd bVec, const TetMesh& mesh, d
         b[i] = bVec[i];
         r[i] = b[i];
         m[i] = (t < 0)?1e-12:mesh.vertexDualVolumes[i];
-        //m[i] = (t < 0)?1:mesh.vertexDualVolumes[i];
     }
     if (t < 0) t = 1;
 
@@ -198,34 +197,6 @@ void cgSolve(Eigen::VectorXd& xOut, Eigen::VectorXd bVec, const TetMesh& mesh, d
     computeAp<<<NBLOCK,NTHREAD>>>(d_Ap, d_x, d_cotans, d_neighbors, d_m, t, maxDegree, N);
     vector_sub<<<NBLOCK,NTHREAD>>>(d_r, d_b, d_Ap, N);
     vector_cpy<<<NBLOCK,NTHREAD>>>(d_p, d_r, N);
-    {
-      cudaMemcpy(r, d_r, sizeof(double) * N, cudaMemcpyDeviceToHost);
-
-      double *alpha = new double[1];
-      //double *beta = new double[1];
-      double *r2 = (double*)malloc(sizeof(double));
-      double *p = new double[N];
-      double *Ap = new double[N];
-      cudaMemcpy(p,     d_p,     sizeof(double) * N, cudaMemcpyDeviceToHost);
-      cudaMemcpy(Ap,    d_Ap,    sizeof(double) * N, cudaMemcpyDeviceToHost);
-      cudaMemcpy(x,     d_x,     sizeof(double) * N, cudaMemcpyDeviceToHost);
-      cudaMemcpy(b,     d_b,     sizeof(double) * N, cudaMemcpyDeviceToHost);
-      cudaMemcpy(r2,    d_r2,    sizeof(double) * 1, cudaMemcpyDeviceToHost);
-      cudaMemcpy(alpha, d_alpha, sizeof(double) * 1, cudaMemcpyDeviceToHost);
-      //cudaMemcpy(beta,  d_beta,  sizeof(double) * 1, cudaMemcpyDeviceToHost);
-      double norm = 0;
-      for (int i = 0; i < N; i++) {
-        norm = fmax(norm, fabs(r[i]));
-      }
-      ++iter;
-      //printf("r2  : %f\n", r2[0]);
-      printf("alpha: %f \t r2  : %f\n", alpha[0], r2[0]);
-      printf("x[0] : %.10e \t x[1] : %.10e \t x[2] : %.10e\n", x[0], x[1], x[2]);
-      printf("b[0] : %.10e \t b[1] : %.10e \t b[2] : %.10e\n", b[0], b[1], b[2]);
-      printf("p[0] : %.10e \t p[1] : %.10e \t p[2] : %.10e\n", p[0], p[1], p[2]);
-      printf("Ap[0] : %.10e \t Ap[1] : %.10e \t Ap[2] : %.10e\n", Ap[0], Ap[1], Ap[2]);
-      printf("r[0] : %.10e \t r[1] : %.10e \t r[2] : %.10e\n", r[0], r[1], r[2]);
-    }
     while (!done) {
       for (int i = 0; i < 40; ++i) {
          computeAp<<<NBLOCK,NTHREAD>>>(d_Ap, d_p, d_cotans, d_neighbors, d_m, t, maxDegree, N);
@@ -237,31 +208,12 @@ void cgSolve(Eigen::VectorXd& xOut, Eigen::VectorXd bVec, const TetMesh& mesh, d
 
       // Transfer data back to host memory
       cudaMemcpy(r, d_r, sizeof(double) * N, cudaMemcpyDeviceToHost);
-
-      double *alpha = new double[1];
-      //double *beta = new double[1];
-      double *r2 = (double*)malloc(sizeof(double));
-      double *p = new double[N];
-      cudaMemcpy(p,     d_p,     sizeof(double) * N, cudaMemcpyDeviceToHost);
-      cudaMemcpy(x,     d_x,     sizeof(double) * N, cudaMemcpyDeviceToHost);
-      cudaMemcpy(r2,    d_r2,    sizeof(double) * 1, cudaMemcpyDeviceToHost);
-      cudaMemcpy(alpha, d_alpha, sizeof(double) * 1, cudaMemcpyDeviceToHost);
-      //cudaMemcpy(beta,  d_beta,  sizeof(double) * 1, cudaMemcpyDeviceToHost);
       double norm = 0;
       for (int i = 0; i < N; i++) {
         norm = fmax(norm, fabs(r[i]));
       }
       ++iter;
-      //printf("r2  : %f\n", r2[0]);
-      printf("alpha: %f \t r2  : %f\n", alpha[0], r2[0]);
-      printf("x[0] : %.10e \t x[1] : %.10e \t x[2] : %.10e\n", x[0], x[1], x[2]);
-      printf("p[0] : %.10e \t p[1] : %.10e \t p[2] : %.10e\n", p[0], p[1], p[2]);
-      printf("r[0] : %.10e \t r[1] : %.10e \t r[2] : %.10e\n", r[0], r[1], r[2]);
-      //printf("norm: %f\n", norm);
-      //printf("\n");
-      //fflush(stdout);
       done = (norm < tol) || (iter > 100);
-      //done = true;
     }
 
     // Transfer data back to host memory
@@ -277,7 +229,6 @@ void cgSolve(Eigen::VectorXd& xOut, Eigen::VectorXd bVec, const TetMesh& mesh, d
       }
       if (abs(result - b[i]) > tol) {
           printf("err: vertex %d result[%d] = %f, b[%d] = %f, x[%d] = %f, err=%.10e\n", i, i, result, i, b[i], i, x[i], result-b[i]);
-          //printf("iter: %d\n", iter);
       }
       xOut[i] = x[i];
     }
