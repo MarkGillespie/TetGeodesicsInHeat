@@ -109,7 +109,7 @@ std::vector<std::unordered_map<size_t, double>> edgeWeights(const TetMesh& mesh)
 // If t < 0, solve Lx = b (realy we relax to (L + 1e-12)x = b to ensure our
 // system is positive definite
 // If t >= 0, solve (M + tL)x = b, where M is the mass matrix and L is the laplacian
-void cgSolve(Eigen::VectorXd& xOut, Eigen::VectorXd bVec, const TetMesh& mesh, double tol, double t) {
+int  cgSolve(Eigen::VectorXd& xOut, Eigen::VectorXd bVec, const TetMesh& mesh, double tol, double t) {
     double *x, *b, *r, *cotans, *m;
     double *d_x, *d_b, *d_p, *d_Ap, *d_r, *d_r2, *d_alpha, *d_beta, *d_cotans, *d_m;
     int* neighbors, *d_neighbors;
@@ -154,7 +154,7 @@ void cgSolve(Eigen::VectorXd& xOut, Eigen::VectorXd bVec, const TetMesh& mesh, d
         }
     }
 
-    printf("max degree: %d\n", maxDegree);
+    //printf("max degree: %d\n", maxDegree);
     Eigen::SparseMatrix<double> L    = mesh.weakLaplacian();
     for (size_t iV = 0; iV < mesh.vertices.size(); ++iV) {
         for (size_t iN = 0; iN < maxDegree; ++iN) {
@@ -197,8 +197,10 @@ void cgSolve(Eigen::VectorXd& xOut, Eigen::VectorXd bVec, const TetMesh& mesh, d
     computeAp<<<NBLOCK,NTHREAD>>>(d_Ap, d_x, d_cotans, d_neighbors, d_m, t, maxDegree, N);
     vector_sub<<<NBLOCK,NTHREAD>>>(d_r, d_b, d_Ap, N);
     vector_cpy<<<NBLOCK,NTHREAD>>>(d_p, d_r, N);
+
+    int substeps = 40;
     while (!done) {
-      for (int i = 0; i < 40; ++i) {
+      for (int i = 0; i < substeps; ++i) {
          computeAp<<<NBLOCK,NTHREAD>>>(d_Ap, d_p, d_cotans, d_neighbors, d_m, t, maxDegree, N);
          compute_alpha<<<NBLOCK, NTHREAD>>>(d_alpha, d_r2, d_r, d_p, d_Ap, N);
          update_x_r<<<NBLOCK, NTHREAD>>>(d_x, d_r, d_alpha, d_p, d_Ap, N);
@@ -249,5 +251,26 @@ void cgSolve(Eigen::VectorXd& xOut, Eigen::VectorXd bVec, const TetMesh& mesh, d
     free(cotans);
     free(neighbors);
 
-    return;
+    return iter * substeps;
+}
+
+void oopsAllDotProducts(Eigen::VectorXd v, int iter) {
+    double *d_v, *d_beta, *d_v2;
+    cudaMalloc((void**)&d_v,    sizeof(double) * v.size());
+    cudaMalloc((void**)&d_beta, sizeof(double) * 1);
+    cudaMalloc((void**)&d_v2,   sizeof(double) * 1);
+
+    // Transfer data from host to device memory
+    cudaMemcpy(d_v, v.data(), sizeof(double) * v.size(), cudaMemcpyHostToDevice);
+
+    for (int i = 0; i < iter; ++i) {
+        for (int j = 0; j < 2; ++j) {
+            compute_beta<<<NBLOCK,NTHREAD>>>(d_beta, d_v2, d_v, v.size());
+        }
+    }
+
+    // __global__ void compute_beta(double *out, double *r2, double *r, int n);
+    cudaFree(d_v);
+    cudaFree(d_beta);
+    cudaFree(d_v2);
 }

@@ -308,8 +308,8 @@ std::array<double, 6> TetMesh::cotanWeights(Tet t) {
 }
 
 double TetMesh::meanEdgeLength() {
-    cout << "WARNING: meanEdgeLength doesn't handle multiplicity correctly"
-         << endl;
+    //cerr << "WARNING: meanEdgeLength doesn't handle multiplicity correctly"
+         //<< endl;
 
     double totalEdgeLength = 0;
     size_t nEdges          = 0;
