@@ -22,6 +22,7 @@ add_library(
     cuda/cg.cu
 )
 target_link_libraries(cudaCG Eigen3::Eigen tetMesh)
+target_compile_options(cudaCG PRIVATE $<$<COMPILE_LANGUAGE:CUDA>:-gencode arch=compute_70,code=sm_70>)
 
 add_executable(
   run

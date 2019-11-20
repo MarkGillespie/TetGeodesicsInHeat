@@ -35,7 +35,35 @@ __global__ void vector_cpy(double *out, double *a, int n) {
   }
 }
 
-// Computes alpha = dot(r, r) / dot(p, Ap). Returns dot(r, r) as r2
+
+// Computes out = dot(a, b)
+__global__ void dot_product(double* out, double* a, double* b, int n) {
+  int index = blockIdx.x * blockDim.x + threadIdx.x;
+  int stride = gridDim.x * blockDim.x;
+
+  // Clear out
+  if (index == 0) { out[0] = 0; }
+
+  // dynamic array size must be declared as the third argument in kernel invocation
+  // i.e. dot_product_blockwise<<<NBLOCK, NTHREAD, N * sizeof(double)>>>(out, a, b, N);
+  extern __shared__ double temp[];
+
+  for(int i = index; i < n; i += stride){
+      temp[i] = a[i] * b[i];
+  }
+  __syncthreads();
+  // Reduce all of threads
+
+  if (threadIdx.x == 0) {
+      double sum = 0;
+      for (int i = 0; i < n; ++i) {
+          sum += temp[i];
+      }
+      atomicAdd(out, sum);
+  }
+}
+
+// Computes alpha = r2 / dot(p, Ap).
 __global__ void compute_alpha(double *out, double *r2, double *r, double *p, double *Ap, int n) {
   int index = blockIdx.x * blockDim.x + threadIdx.x;
   if (index == 0) {
