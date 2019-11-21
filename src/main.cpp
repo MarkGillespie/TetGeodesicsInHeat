@@ -2,7 +2,7 @@
 
 #include "args.hxx"
 
-#include "cuda/cg.cuh"
+#include "cuda/jacobi.cuh"
 
 #include <ctime>
 
@@ -27,24 +27,24 @@ void testSolver(size_t startIndex, double t) {
     Eigen::VectorXd u0 = Eigen::VectorXd::Map(start.data(), start.size());
 
     Eigen::VectorXd u(mesh->vertices.size());
-    cgSolve(u, u0, *mesh, 1e-8, t);
+    jacobiSolve(u, u0, *mesh, 1e-8, t);
 
     // Verify;
     Eigen::SparseMatrix<double> L    = mesh->weakLaplacian();
     Eigen::SparseMatrix<double> M    = mesh->massMatrix();
     Eigen::SparseMatrix<double> flow = M + t * L;
-    //Eigen::SimplicialLDLT<Eigen::SparseMatrix<double>> solver;
-    //solver.compute(flow);
-    //Eigen::VectorXd uEigen = solver.solve(u0);
+    Eigen::SimplicialLDLT<Eigen::SparseMatrix<double>> solver;
+    solver.compute(flow);
+    Eigen::VectorXd uEigen = solver.solve(u0);
 
-    //cout << "Residual: " << (flow * u - u0).norm() << endl;
+    cout << "Residual: " << (flow * u - u0).norm() << endl;
 
     // Subtract out mean to solve laplace problem
     Eigen::VectorXd ones = Eigen::VectorXd::Ones(u0.size());
     u0 -= u0.dot(ones) * ones;
 
-    cgSolve(u, u0, *mesh, 1e-8, -1);
-    //cout << "Residual: " << (L * u - u0).norm() << endl;
+    jacobiSolve(u, u0, *mesh, 1e-8, -1);
+    cout << "Residual: " << (L * u - u0).norm() << endl;
 }
 
 std::vector<double> computeDistances(size_t startIndex, double t, bool useCUDA) {
@@ -62,7 +62,7 @@ std::vector<double> computeDistances(size_t startIndex, double t, bool useCUDA) 
     Eigen::VectorXd u(mesh->vertices.size());
     Eigen::SparseMatrix<double> flow = M + t * L;
     if (useCUDA) {
-        cgSolve(u, u0, *mesh, 1e-8, t);
+        jacobiSolve(u, u0, *mesh, 1e-8, t);
         //cout << "Residual: " << (flow * u  - u0).norm() << endl;
     } else {
         Eigen::SimplicialLDLT<Eigen::SparseMatrix<double>> solver;
@@ -94,7 +94,7 @@ std::vector<double> computeDistances(size_t startIndex, double t, bool useCUDA) 
 
     Eigen::VectorXd phi(mesh->vertices.size());
     if (useCUDA) {
-        cgSolve(phi, divX, *mesh, 1e-8, -1);
+        jacobiSolve(phi, divX, *mesh, 1e-8, -1);
         //cout << "Residual: " << (L * phi - divX).norm() << endl;
     } else {
         Eigen::SimplicialLDLT<Eigen::SparseMatrix<double>> solver;
@@ -162,8 +162,8 @@ int main(int argc, char** argv) {
     std::cout<< "\t" << duration;
 
     start = std::clock();
-    computeDistances(0, -1, true);
-    //testSolver(0, -1);
+    //computeDistances(0, -1, true);
+    testSolver(0, -1);
     duration = ( std::clock() - start ) / (double) CLOCKS_PER_SEC * 1000;
     std::cout<< "\t" << duration;
 

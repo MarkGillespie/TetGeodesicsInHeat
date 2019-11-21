@@ -193,8 +193,6 @@ int  cgSolve(Eigen::VectorXd& xOut, Eigen::VectorXd bVec, const TetMesh& mesh, d
     bool done = false;
     int iter = 0;
 
-    memExample<<<NBLOCK, NTHREAD, N>>>(N);
-
     computeAp<<<NBLOCK,NTHREAD>>>(d_Ap, d_x, d_cotans, d_neighbors, d_m, t, maxDegree, N);
     vector_sub<<<NBLOCK,NTHREAD>>>(d_r, d_b, d_Ap, N);
     vector_cpy<<<NBLOCK,NTHREAD>>>(d_p, d_r, N);
@@ -246,6 +244,8 @@ int  cgSolve(Eigen::VectorXd& xOut, Eigen::VectorXd bVec, const TetMesh& mesh, d
     cudaFree(d_alpha);
     cudaFree(d_beta);
     cudaFree(d_r2);
+    cudaFree(d_neighbors);
+    cudaFree(d_cotans);
 
     // Deallocate host memory
     free(x);
