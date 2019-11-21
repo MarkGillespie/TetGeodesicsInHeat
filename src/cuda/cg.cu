@@ -35,32 +35,41 @@ __global__ void vector_cpy(double *out, double *a, int n) {
   }
 }
 
+__global__ void memExample(int n) {
+  extern __shared__ double tempExample[];
+  int index = blockIdx.x * blockDim.x + threadIdx.x;
+  if (index < 320) {
+      tempExample[index] = 5;
+  }
+}
 
 // Computes out = dot(a, b)
+// dynamic array size must be declared as the third argument in kernel invocation
+// i.e. dot_product_blockwise<<<NBLOCK, NTHREAD, N * sizeof(double)>>>(out, a, b, N);
 __global__ void dot_product(double* out, double* a, double* b, int n) {
-  int index = blockIdx.x * blockDim.x + threadIdx.x;
-  int stride = gridDim.x * blockDim.x;
+extern __shared__ double temp[];
+  //int index = blockIdx.x * blockDim.x + threadIdx.x;
+  //int stride = gridDim.x * blockDim.x;
 
   // Clear out
-  if (index == 0) { out[0] = 0; }
+  //if (index == 0) { out[0] = 0; }
 
-  // dynamic array size must be declared as the third argument in kernel invocation
-  // i.e. dot_product_blockwise<<<NBLOCK, NTHREAD, N * sizeof(double)>>>(out, a, b, N);
-  extern __shared__ double temp[];
+  //double s = temp[index];
+  //temp[index] = 5;
 
-  for(int i = index; i < n; i += stride){
-      temp[i] = a[i] * b[i];
-  }
+
+  //temp[index] = stride;
+  //for(int i = index; i < n; i += stride) { temp[i] = 0; }//a[i] * b[i]; }
+  /*
   __syncthreads();
   // Reduce all of threads
 
   if (threadIdx.x == 0) {
       double sum = 0;
-      for (int i = 0; i < n; ++i) {
-          sum += temp[i];
-      }
+      for (int i = 0; i < n; ++i) { sum += temp[i]; }
       atomicAdd(out, sum);
   }
+  */
 }
 
 // Computes alpha = r2 / dot(p, Ap).
@@ -88,6 +97,21 @@ __global__ void update_x_r(double* x, double* r, double* alpha, double* p, doubl
   }
 }
 
+// alpha := r2 / pAp
+// x += alpha p
+// r -= alpha Ap
+__global__ void update_x_r_better(double* x, double* r, double* p, double* Ap,
+                                  double* r2, double* pAp, int n) {
+  int index = blockIdx.x * blockDim.x + threadIdx.x;
+  int stride = gridDim.x * blockDim.x;
+
+  double alpha = r2[0] / pAp[0];
+  for(int i = index; i < n; i += stride){
+    x[i] += alpha * p[i];
+    r[i] -= alpha * Ap[i];
+  }
+}
+
 // Computes beta = dot(r, r) / r2
 // where r2 is the old value of dot(r, r).
 // Also updates r2 to be the new value of dot(r, r)
@@ -109,6 +133,17 @@ __global__ void update_p(double* p, double *beta, double *r, int n) {
   int stride = gridDim.x * blockDim.x;
   for(int i = index; i < n; i += stride){
     p[i] = beta[0] * p[i] + r[i];
+  }
+}
+
+// Computes p = beta * p + r where beta = newR2 / olsR2
+__global__ void update_p_better(double* p, double *r, double* newR2, double* oldR2, int n) {
+  int index = blockIdx.x * blockDim.x + threadIdx.x;
+  int stride = gridDim.x * blockDim.x;
+
+  double beta = newR2[0] / oldR2[0];
+  for(int i = index; i < n; i += stride){
+    p[i] = beta * p[i] + r[i];
   }
 }
 
@@ -139,7 +174,7 @@ std::vector<std::unordered_map<size_t, double>> edgeWeights(const TetMesh& mesh)
 // If t >= 0, solve (M + tL)x = b, where M is the mass matrix and L is the laplacian
 int  cgSolve(Eigen::VectorXd& xOut, Eigen::VectorXd bVec, const TetMesh& mesh, double tol, double t) {
     double *x, *b, *r, *cotans, *m;
-    double *d_x, *d_b, *d_p, *d_Ap, *d_r, *d_r2, *d_alpha, *d_beta, *d_cotans, *d_m;
+    double *d_x, *d_b, *d_p, *d_Ap, *d_r, *d_r2, *d_new_r2, *d_pAp, *d_alpha, *d_beta, *d_cotans, *d_m;
     int* neighbors, *d_neighbors;
     int N = bVec.size();
 
@@ -210,6 +245,8 @@ int  cgSolve(Eigen::VectorXd& xOut, Eigen::VectorXd bVec, const TetMesh& mesh, d
     cudaMalloc((void**)&d_alpha,     sizeof(double) * 1);
     cudaMalloc((void**)&d_beta,      sizeof(double) * 1);
     cudaMalloc((void**)&d_r2,        sizeof(double) * 1);
+    cudaMalloc((void**)&d_new_r2,    sizeof(double) * 1);
+    cudaMalloc((void**)&d_pAp,       sizeof(double) * 1);
 
     // Transfer data from host to device memory
     cudaMemcpy(d_x,         x,         sizeof(double) * N,             cudaMemcpyHostToDevice);
@@ -222,18 +259,26 @@ int  cgSolve(Eigen::VectorXd& xOut, Eigen::VectorXd bVec, const TetMesh& mesh, d
     bool done = false;
     int iter = 0;
 
+    memExample<<<NBLOCK, NTHREAD, N>>>(N);
+
     computeAp<<<NBLOCK,NTHREAD>>>(d_Ap, d_x, d_cotans, d_neighbors, d_m, t, maxDegree, N);
     vector_sub<<<NBLOCK,NTHREAD>>>(d_r, d_b, d_Ap, N);
     vector_cpy<<<NBLOCK,NTHREAD>>>(d_p, d_r, N);
+    //dot_product<<<NBLOCK, NTHREAD, N>>>(d_r2, d_r, d_r, N);
 
     int substeps = 40;
     while (!done) {
       for (int i = 0; i < substeps; ++i) {
          computeAp<<<NBLOCK,NTHREAD>>>(d_Ap, d_p, d_cotans, d_neighbors, d_m, t, maxDegree, N);
+         //dot_product<<<NBLOCK, NTHREAD, N>>>(d_pAp, d_p, d_Ap, N);
          compute_alpha<<<NBLOCK, NTHREAD>>>(d_alpha, d_r2, d_r, d_p, d_Ap, N);
          update_x_r<<<NBLOCK, NTHREAD>>>(d_x, d_r, d_alpha, d_p, d_Ap, N);
+         //update_x_r_better<<<NBLOCK, NTHREAD>>>(d_x, d_r, d_p, d_Ap, d_r2, d_pAp, N);
          compute_beta<<<NBLOCK, NTHREAD>>>(d_beta, d_r2, d_r, N);
          update_p<<<NBLOCK, NTHREAD>>>(d_p, d_beta, d_r, N);
+         // dot_product<<<NBLOCK, NTHREAD, N>>>(d_new_r2, d_r, d_r, N);
+         // update_p_better<<<NBLOCK, NTHREAD>>>(d_p, d_r, d_new_r2, d_r2, N);
+         // vector_cpy<<<NBLOCK, NTHREAD>>>(d_r2, d_new_r2, 1);
       }
 
       // Transfer data back to host memory
@@ -243,7 +288,8 @@ int  cgSolve(Eigen::VectorXd& xOut, Eigen::VectorXd bVec, const TetMesh& mesh, d
         norm = fmax(norm, fabs(r[i]));
       }
       ++iter;
-      done = (norm < tol) || (iter > 100);
+      printf("%d: residual: %f\n", iter, norm);
+      done = (norm < tol) || (iter > 30);
     }
 
     // Transfer data back to host memory
@@ -258,7 +304,7 @@ int  cgSolve(Eigen::VectorXd& xOut, Eigen::VectorXd bVec, const TetMesh& mesh, d
           result += t * weight * (x[i] - x[neighbor]);
       }
       if (abs(result - b[i]) > tol) {
-          printf("err: vertex %d result[%d] = %f, b[%d] = %f, x[%d] = %f, err=%.10e\n", i, i, result, i, b[i], i, x[i], result-b[i]);
+          printf("err: vertex %d result[%d] = %f, b[%d] = %f, x[%d] = %f, err=%.10e, iter=%d\n", i, i, result, i, b[i], i, x[i], result-b[i], iter);
       }
       xOut[i] = x[i];
     }
