@@ -2,7 +2,7 @@
 
 #include "args.hxx"
 
-#include "cuda/cg.cuh"
+#include "cuda/jacobi.cuh"
 
 #include <ctime>
 
@@ -27,17 +27,15 @@ void testSolver(size_t startIndex, double t) {
     Eigen::VectorXd u0 = Eigen::VectorXd::Map(start.data(), start.size());
 
     Eigen::VectorXd u(mesh->vertices.size());
-    cout << "Solving for u" << endl;
-    cgSolve(u, u0, *mesh, t);
-    cout << "done" << endl;
+    jacobiSolve(u, u0, *mesh, 1e-8, t);
 
     // Verify;
     Eigen::SparseMatrix<double> L    = mesh->weakLaplacian();
     Eigen::SparseMatrix<double> M    = mesh->massMatrix();
     Eigen::SparseMatrix<double> flow = M + t * L;
-    //Eigen::SimplicialLDLT<Eigen::SparseMatrix<double>> solver;
-    //solver.compute(flow);
-    //Eigen::VectorXd uEigen = solver.solve(u0);
+    Eigen::SimplicialLDLT<Eigen::SparseMatrix<double>> solver;
+    solver.compute(flow);
+    Eigen::VectorXd uEigen = solver.solve(u0);
 
     cout << "Residual: " << (flow * u - u0).norm() << endl;
 
@@ -45,9 +43,8 @@ void testSolver(size_t startIndex, double t) {
     Eigen::VectorXd ones = Eigen::VectorXd::Ones(u0.size());
     u0 -= u0.dot(ones) * ones;
 
-    cout << "Solving for phi" << endl;
-    cgSolve(u, u0, *mesh, -1);
-    cout << "done" << endl;
+    jacobiSolve(u, u0, *mesh, 1e-8, -1);
+    cout << "Residual: " << (L * u - u0).norm() << endl;
 }
 
 std::vector<double> computeDistances(size_t startIndex, double t, bool useCUDA) {
@@ -63,11 +60,11 @@ std::vector<double> computeDistances(size_t startIndex, double t, bool useCUDA) 
     Eigen::SparseMatrix<double> M    = mesh->massMatrix();
 
     Eigen::VectorXd u(mesh->vertices.size());
-    cout << "Solving for u" << endl;
+    Eigen::SparseMatrix<double> flow = M + t * L;
     if (useCUDA) {
-        cgSolve(u, u0, *mesh, t);
+        jacobiSolve(u, u0, *mesh, 1e-8, t);
+        //cout << "Residual: " << (flow * u  - u0).norm() << endl;
     } else {
-        Eigen::SparseMatrix<double> flow = M + t * L;
         Eigen::SimplicialLDLT<Eigen::SparseMatrix<double>> solver;
         solver.compute(flow);
         u = solver.solve(u0);
@@ -96,9 +93,9 @@ std::vector<double> computeDistances(size_t startIndex, double t, bool useCUDA) 
     divX -= divX.dot(ones) * ones;
 
     Eigen::VectorXd phi(mesh->vertices.size());
-    cout << "Solving for phi" << endl;
     if (useCUDA) {
-        cgSolve(phi, divX, *mesh, -1);
+        jacobiSolve(phi, divX, *mesh, 1e-8, -1);
+        //cout << "Residual: " << (L * phi - divX).norm() << endl;
     } else {
         Eigen::SimplicialLDLT<Eigen::SparseMatrix<double>> solver;
         solver.compute(L);
@@ -127,6 +124,8 @@ int main(int argc, char** argv) {
     args::ArgumentParser parser("Geometry program");
     args::Positional<std::string> inputFilename(
         parser, "mesh", "Tet mesh (ele file) to be processed.");
+    args::Positional<std::string> niceName(
+        parser, "name", "Nice name for printed output.");
 
     // Parse args
     try {
@@ -146,21 +145,29 @@ int main(int argc, char** argv) {
         filename = args::get(inputFilename);
     }
 
+    std::string descriptionName = filename;
+    if (niceName) {
+        descriptionName = args::get(niceName);
+    }
+
     mesh = TetMesh::loadFromFile(filename);
+    std::cout << descriptionName << "\t" << mesh->tets.size();
 
     std::clock_t start;
     double duration;
 
-    //start = std::clock();
-    //computeDistances(0, -1, false);
-    //duration = ( std::clock() - start ) / (double) CLOCKS_PER_SEC * 1000;
-    //std::cout<< "Eigen: " << "nTets: " << mesh->tets.size()<<"\ttime: "<< duration <<"ms\n";
+    start = std::clock();
+    computeDistances(0, -1, false);
+    duration = ( std::clock() - start ) / (double) CLOCKS_PER_SEC * 1000;
+    std::cout<< "\t" << duration;
 
     start = std::clock();
-    computeDistances(0, -1, true);
-    // testSolver(0, -1);
+    //computeDistances(0, -1, true);
+    testSolver(0, -1);
     duration = ( std::clock() - start ) / (double) CLOCKS_PER_SEC * 1000;
-    std::cout<< "CUDA:  " << "nTets: " << mesh->tets.size()<<"\ttime: "<< duration <<"ms\n";
+    std::cout<< "\t" << duration;
+
+    std::cout << std::endl;
 
     return EXIT_SUCCESS;
 }

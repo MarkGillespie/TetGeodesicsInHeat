@@ -17,18 +17,19 @@ add_library(
 target_link_libraries(tetMesh Eigen3::Eigen)
 
 add_library(
-    cudaCG
-    cuda/cg.cuh
-    cuda/cg.cu
+    cudaSolver
+    cuda/jacobi.cuh
+    cuda/jacobi.cu
 )
-target_link_libraries(cudaCG Eigen3::Eigen tetMesh)
+target_link_libraries(cudaSolver Eigen3::Eigen tetMesh)
+target_compile_options(cudaSolver PRIVATE $<$<COMPILE_LANGUAGE:CUDA>:-gencode arch=compute_70,code=sm_70>)
 
 add_executable(
   run
   main.cpp
 )
 target_include_directories(run PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/../include")
-target_link_libraries(run tetMesh args cudaCG)
+target_link_libraries(run tetMesh args cudaSolver)
 
 option(PACKAGE_TESTS "Build the tests" ON)
 

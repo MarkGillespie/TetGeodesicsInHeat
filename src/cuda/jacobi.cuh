@@ -16,5 +16,4 @@ using namespace CompArch;
 
 // If t > 0, solves (M + tL) x = b
 // If t < 0, solves Lx = b
-int cgSolve(Eigen::VectorXd& xOut, Eigen::VectorXd b, const TetMesh& mesh, double tol=1e-8, double t = -1);
-void oopsAllDotProducts(Eigen::VectorXd a, Eigen::VectorXd b, int iter);
+int jacobiSolve(Eigen::VectorXd& xOut, Eigen::VectorXd b, const TetMesh& mesh, double tol=1e-8, double t = -1);
