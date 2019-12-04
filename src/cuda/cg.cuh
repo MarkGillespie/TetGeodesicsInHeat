@@ -19,3 +19,8 @@ using namespace CompArch;
 // If t > 0, solves (M + tL) x = b
 // If t < 0, solves Lx = b
 int cgSolve(Eigen::VectorXd& xOut, Eigen::VectorXd b, const TetMesh& mesh, double tol=1e-8, double t = -1, bool verbose = false);
+
+// If t > 0, solves (M + tL) x = b
+// If t < 0, solves Lx = b
+// Stores matrix in CSR format
+int cgSolveCSR(Eigen::VectorXd& xOut, Eigen::VectorXd b, const TetMesh& mesh, double tol=1e-8, double t = -1, bool verbose = false);

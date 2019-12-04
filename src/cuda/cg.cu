@@ -17,6 +17,21 @@ __global__ void computeAp(double *out, double *p, double *cotans, int* neighbors
     }
 }
 
+// Computes out = (M + tL)p
+__global__ void computeApCSR(double *out, double *p, double *cotans, int* neighbors, double* m, int* start_end, double t, int n) {
+    int index = blockIdx.x * blockDim.x + threadIdx.x;
+    int stride = gridDim.x * blockDim.x;
+
+    for(int i = index; i < n; i += stride){
+        out[i] = m[i] * p[i];
+        for (int iN = start_end[2 * i]; iN < start_end[2 * i + 1]; ++iN) {
+            int neighbor = neighbors[iN];
+            double weight = cotans[iN];
+            out[i] += t * weight * (p[i] - p[neighbor]);
+        }
+    }
+}
+
 // Computes out = a-b
 __global__ void vector_sub(double *out, double *a, double *b, int n) {
   int index = blockIdx.x * blockDim.x + threadIdx.x;
@@ -237,6 +252,154 @@ int  cgSolve(Eigen::VectorXd& xOut, Eigen::VectorXd bVec, const TetMesh& mesh, d
     cudaFree(d_old_r2);
     cudaFree(d_new_r2);
     cudaFree(d_neighbors);
+    cudaFree(d_cotans);
+
+    // Deallocate host memory
+    free(x);
+    free(b);
+    free(cotans);
+    free(neighbors);
+
+    return iter * substeps;
+}
+
+// If t < 0, solve Lx = b (realy we relax to (L + 1e-12)x = b to ensure our
+// system is positive definite
+// If t >= 0, solve (M + tL)x = b, where M is the mass matrix and L is the laplacian
+// Stores matrix in CSR format
+int cgSolveCSR(Eigen::VectorXd& xOut, Eigen::VectorXd bVec, const TetMesh& mesh, double tol, double t, bool verbose) {
+    double *x, *b, *r, *cotans, *m;
+    double *d_x, *d_b, *d_p, *d_Ap, *d_r, *d_old_r2, *d_new_r2,  *d_pAp, *d_alpha, *d_beta, *d_cotans, *d_m;
+    int* neighbors, *d_neighbors, *start_end, *d_start_end;
+    int N = bVec.size();
+
+    std::vector<std::unordered_map<size_t, double>> weights = edgeWeights(mesh);
+    int nEdges = 0;
+    for (size_t iV = 0; iV < mesh.vertices.size(); ++iV) {
+        nEdges += weights[iV].size();
+    }
+
+    // Allocate host memory
+    x         = (double*) malloc(sizeof(double) * N);
+    b         = (double*) malloc(sizeof(double) * N);
+    r         = (double*) malloc(sizeof(double) * N);
+    m         = (double*) malloc(sizeof(double) * N);
+    cotans    = (double*) malloc(sizeof(double) * nEdges);
+    neighbors = (int*   ) malloc(sizeof(int   ) * nEdges);
+    start_end = (int*   ) malloc(sizeof(int   ) * 2 * N);
+
+    // Initialize host arrays
+    for(int i = 0; i < N; i++){
+        x[i] = 0.0f;
+        b[i] = bVec[i];
+        r[i] = b[i];
+        m[i] = (t < 0)?1e-12:mesh.vertexDualVolumes[i];
+    }
+    if (t < 0) t = 1;
+
+    int pos = 0;
+    for (size_t iV = 0; iV < mesh.vertices.size(); ++iV) {
+        start_end[2 * iV] = pos;
+        for (std::pair<size_t, double> elem : weights[iV]) {
+            neighbors[pos] = elem.first;
+            cotans[pos] = elem.second;
+            pos += 1;
+        }
+        start_end[2 * iV + 1] = pos;
+    }
+
+    // Allocate device memory
+    cudaMalloc((void**)&d_x,         sizeof(double) * N);
+    cudaMalloc((void**)&d_b,         sizeof(double) * N);
+    cudaMalloc((void**)&d_Ap,        sizeof(double) * N);
+    cudaMalloc((void**)&d_p,         sizeof(double) * N);
+    cudaMalloc((void**)&d_r,         sizeof(double) * N);
+    cudaMalloc((void**)&d_m,         sizeof(double) * N);
+    cudaMalloc((void**)&d_neighbors, sizeof(int   ) * nEdges);
+    cudaMalloc((void**)&d_cotans,    sizeof(double) * nEdges);
+    cudaMalloc((void**)&d_start_end, sizeof(int   ) * 2 * N);
+    cudaMalloc((void**)&d_alpha,     sizeof(double) * 1);
+    cudaMalloc((void**)&d_beta,      sizeof(double) * 1);
+    cudaMalloc((void**)&d_old_r2,    sizeof(double) * 1);
+    cudaMalloc((void**)&d_new_r2,    sizeof(double) * 1);
+    cudaMalloc((void**)&d_pAp,       sizeof(double) * 1);
+
+    // Transfer data from host to device memory
+    cudaMemcpy(d_x,         x,         sizeof(double) * N,      cudaMemcpyHostToDevice);
+    cudaMemcpy(d_r,         r,         sizeof(double) * N,      cudaMemcpyHostToDevice);
+    cudaMemcpy(d_b,         b,         sizeof(double) * N,      cudaMemcpyHostToDevice);
+    cudaMemcpy(d_m,         m,         sizeof(double) * N,      cudaMemcpyHostToDevice);
+    cudaMemcpy(d_neighbors, neighbors, sizeof(int   ) * nEdges, cudaMemcpyHostToDevice);
+    cudaMemcpy(d_start_end, start_end, sizeof(int   ) * 2 * N,  cudaMemcpyHostToDevice);
+    cudaMemcpy(d_cotans,    cotans,    sizeof(double) * nEdges, cudaMemcpyHostToDevice);
+
+    bool done = false;
+    int iter = 0;
+
+    // https://stackoverflow.com/questions/12400477/retaining-dot-product-on-gpgpu-using-cublas-routine/12401838#12401838
+    cublasHandle_t handle;
+    cublasCreate(&handle);
+    cublasSetPointerMode(handle, CUBLAS_POINTER_MODE_DEVICE); 
+
+    computeApCSR<<<NBLOCK,NTHREAD>>>(d_Ap, d_x, d_cotans, d_neighbors, d_m, d_start_end, t, N);
+    vector_sub<<<NBLOCK,NTHREAD>>>(d_r, d_b, d_Ap, N);
+    vector_cpy<<<NBLOCK,NTHREAD>>>(d_p, d_r, N);
+    cublasDdot(handle, N, d_r, 1, d_r, 1, d_old_r2);
+
+    int substeps = 40;
+    while (!done) {
+      for (int i = 0; i < substeps; ++i) {
+        computeApCSR<<<NBLOCK,NTHREAD>>>(d_Ap, d_x, d_cotans, d_neighbors, d_m, d_start_end, t, N);
+        cublasDdot(handle, N, d_p, 1, d_Ap, 1, d_pAp);
+        div<<<NBLOCK, NTHREAD>>>(d_alpha, d_old_r2, d_pAp);
+        update_x_r<<<NBLOCK, NTHREAD>>>(d_x, d_r, d_alpha, d_p, d_Ap, N);
+        cublasDdot(handle, N, d_r, 1, d_r, 1, d_new_r2);
+        div<<<NBLOCK, NTHREAD>>>(d_beta, d_new_r2, d_old_r2);
+        update_p<<<NBLOCK, NTHREAD>>>(d_p, d_beta, d_r, N);
+        vector_cpy<<<NBLOCK,NTHREAD>>>(d_old_r2, d_new_r2, N);
+      }
+
+      // Transfer data back to host memory
+      cudaMemcpy(r, d_r, sizeof(double) * N, cudaMemcpyDeviceToHost);
+      double norm = 0;
+      for (int i = 0; i < N; i++) {
+        norm = fmax(norm, fabs(r[i]));
+      }
+      ++iter;
+      if (verbose) printf("%d: residual: %f\n", iter, norm);
+      done = (norm < tol) || (iter > 30);
+    }
+    cublasDestroy(handle);
+
+    // Transfer data back to host memory
+    cudaMemcpy(x, d_x, sizeof(double) * N, cudaMemcpyDeviceToHost);
+
+    // Verification
+    for (int i = 0; i < N; ++i) {
+      double result = m[i] * x[i];
+      for (int iN = start_end[2 * i]; iN < start_end[2 * i + 1]; ++iN) {
+          int neighbor = neighbors[iN];
+          double weight = cotans[iN];
+          result += t * weight * (x[i] - x[neighbor]);
+      }
+      if (abs(result - b[i]) > tol) {
+          printf("err: vertex %d result[%d] = %f, b[%d] = %f, x[%d] = %f, err=%.10e, iter=%d\n", i, i, result, i, b[i], i, x[i], result-b[i], iter);
+      }
+      xOut[i] = x[i];
+    }
+
+    // Deallocate device memory
+    cudaFree(d_x);
+    cudaFree(d_b);
+    cudaFree(d_Ap);
+    cudaFree(d_p);
+    cudaFree(d_r);
+    cudaFree(d_alpha);
+    cudaFree(d_beta);
+    cudaFree(d_old_r2);
+    cudaFree(d_new_r2);
+    cudaFree(d_neighbors);
+    cudaFree(d_start_end);
     cudaFree(d_cotans);
 
     // Deallocate host memory

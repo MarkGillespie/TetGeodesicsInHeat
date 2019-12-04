@@ -27,7 +27,7 @@ void testSolver(size_t startIndex, double t) {
     Eigen::VectorXd u0 = Eigen::VectorXd::Map(start.data(), start.size());
 
     Eigen::VectorXd u(mesh->vertices.size());
-    cgSolve(u, u0, *mesh, 1e-8, t);
+    cgSolveCSR(u, u0, *mesh, 1e-8, t);
 
     // Verify;
     Eigen::SparseMatrix<double> L    = mesh->weakLaplacian();
@@ -43,7 +43,7 @@ void testSolver(size_t startIndex, double t) {
     Eigen::VectorXd ones = Eigen::VectorXd::Ones(u0.size());
     u0 -= u0.dot(ones) * ones;
 
-    cgSolve(u, u0, *mesh, 1e-8, -1);
+    cgSolveCSR(u, u0, *mesh, 1e-8, -1);
     cout << "Residual: " << (L * u - u0).norm() << endl;
 }
 
@@ -62,7 +62,7 @@ std::vector<double> computeDistances(size_t startIndex, double t, bool useCUDA) 
     Eigen::VectorXd u(mesh->vertices.size());
     Eigen::SparseMatrix<double> flow = M + t * L;
     if (useCUDA) {
-        cgSolve(u, u0, *mesh, 1e-8, t);
+        cgSolveCSR(u, u0, *mesh, 1e-8, t);
         //cout << "Residual: " << (flow * u  - u0).norm() << endl;
     } else {
         Eigen::SimplicialLDLT<Eigen::SparseMatrix<double>> solver;
@@ -94,7 +94,7 @@ std::vector<double> computeDistances(size_t startIndex, double t, bool useCUDA) 
 
     Eigen::VectorXd phi(mesh->vertices.size());
     if (useCUDA) {
-        cgSolve(phi, divX, *mesh, 1e-8, -1);
+        cgSolveCSR(phi, divX, *mesh, 1e-8, -1);
         //cout << "Residual: " << (L * phi - divX).norm() << endl;
     } else {
         Eigen::SimplicialLDLT<Eigen::SparseMatrix<double>> solver;
