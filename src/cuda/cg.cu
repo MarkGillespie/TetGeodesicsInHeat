@@ -34,6 +34,7 @@ __global__ void vector_cpy(double *out, double *a, int n) {
     out[i] = a[i];
   }
 }
+
 // Computes alpha = r2 / dot(p, Ap).
 __global__ void compute_alpha(double *out, double *r2, double *r, double *p, double *Ap, int n) {
   int index = blockIdx.x * blockDim.x + threadIdx.x;
@@ -108,12 +109,11 @@ std::vector<std::unordered_map<size_t, double>> edgeWeights(const TetMesh& mesh)
 // If t < 0, solve Lx = b (realy we relax to (L + 1e-12)x = b to ensure our
 // system is positive definite
 // If t >= 0, solve (M + tL)x = b, where M is the mass matrix and L is the laplacian
-int  cgSolve(Eigen::VectorXd& xOut, Eigen::VectorXd bVec, const TetMesh& mesh, double tol, double t) {
+int  cgSolve(Eigen::VectorXd& xOut, Eigen::VectorXd bVec, const TetMesh& mesh, double tol, double t, bool verbose) {
     double *x, *b, *r, *cotans, *m;
     double *d_x, *d_b, *d_p, *d_Ap, *d_r, *d_r2, *d_alpha, *d_beta, *d_cotans, *d_m;
     int* neighbors, *d_neighbors;
     int N = bVec.size();
-
 
     int maxDegree = 0;
     std::vector<std::unordered_map<size_t, double>> weights = edgeWeights(mesh);
@@ -187,7 +187,7 @@ int  cgSolve(Eigen::VectorXd& xOut, Eigen::VectorXd bVec, const TetMesh& mesh, d
     cudaMemcpy(d_r,         r,         sizeof(double) * N,             cudaMemcpyHostToDevice);
     cudaMemcpy(d_b,         b,         sizeof(double) * N,             cudaMemcpyHostToDevice);
     cudaMemcpy(d_m,         m,         sizeof(double) * N,             cudaMemcpyHostToDevice);
-    cudaMemcpy(d_neighbors, neighbors, sizeof(int  ) * N * maxDegree, cudaMemcpyHostToDevice);
+    cudaMemcpy(d_neighbors, neighbors, sizeof(int   ) * N * maxDegree, cudaMemcpyHostToDevice);
     cudaMemcpy(d_cotans,    cotans,    sizeof(double) * N * maxDegree, cudaMemcpyHostToDevice);
 
     bool done = false;
@@ -197,6 +197,7 @@ int  cgSolve(Eigen::VectorXd& xOut, Eigen::VectorXd bVec, const TetMesh& mesh, d
     vector_sub<<<NBLOCK,NTHREAD>>>(d_r, d_b, d_Ap, N);
     vector_cpy<<<NBLOCK,NTHREAD>>>(d_p, d_r, N);
 
+    cublasHandle_t handle;
     int substeps = 40;
     while (!done) {
       for (int i = 0; i < substeps; ++i) {
@@ -214,9 +215,10 @@ int  cgSolve(Eigen::VectorXd& xOut, Eigen::VectorXd bVec, const TetMesh& mesh, d
         norm = fmax(norm, fabs(r[i]));
       }
       ++iter;
-      printf("%d: residual: %f\n", iter, norm);
+      if (verbose) printf("%d: residual: %f\n", iter, norm);
       done = (norm < tol) || (iter > 30);
     }
+    cublasDestroy(handle);
 
     // Transfer data back to host memory
     cudaMemcpy(x, d_x, sizeof(double) * N, cudaMemcpyDeviceToHost);
@@ -254,25 +256,4 @@ int  cgSolve(Eigen::VectorXd& xOut, Eigen::VectorXd bVec, const TetMesh& mesh, d
     free(neighbors);
 
     return iter * substeps;
-}
-
-void oopsAllDotProducts(Eigen::VectorXd v, int iter) {
-    double *d_v, *d_beta, *d_v2;
-    cudaMalloc((void**)&d_v,    sizeof(double) * v.size());
-    cudaMalloc((void**)&d_beta, sizeof(double) * 1);
-    cudaMalloc((void**)&d_v2,   sizeof(double) * 1);
-
-    // Transfer data from host to device memory
-    cudaMemcpy(d_v, v.data(), sizeof(double) * v.size(), cudaMemcpyHostToDevice);
-
-    for (int i = 0; i < iter; ++i) {
-        for (int j = 0; j < 2; ++j) {
-            compute_beta<<<NBLOCK,NTHREAD>>>(d_beta, d_v2, d_v, v.size());
-        }
-    }
-
-    // __global__ void compute_beta(double *out, double *r2, double *r, int n);
-    cudaFree(d_v);
-    cudaFree(d_beta);
-    cudaFree(d_v2);
 }

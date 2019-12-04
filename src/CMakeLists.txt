@@ -18,8 +18,8 @@ target_link_libraries(tetMesh Eigen3::Eigen)
 
 add_library(
     cudaSolver
-    cuda/jacobi.cuh
-    cuda/jacobi.cu
+    cuda/cg.cuh
+    cuda/cg.cu
 )
 target_link_libraries(cudaSolver Eigen3::Eigen tetMesh)
 target_compile_options(cudaSolver PRIVATE $<$<COMPILE_LANGUAGE:CUDA>:-gencode arch=compute_70,code=sm_70>)

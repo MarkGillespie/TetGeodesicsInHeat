@@ -2,7 +2,7 @@
 
 #include "args.hxx"
 
-#include "cuda/jacobi.cuh"
+#include "cuda/cg.cuh"
 
 #include <ctime>
 
@@ -27,7 +27,7 @@ void testSolver(size_t startIndex, double t) {
     Eigen::VectorXd u0 = Eigen::VectorXd::Map(start.data(), start.size());
 
     Eigen::VectorXd u(mesh->vertices.size());
-    jacobiSolve(u, u0, *mesh, 1e-8, t);
+    cgSolve(u, u0, *mesh, 1e-8, t);
 
     // Verify;
     Eigen::SparseMatrix<double> L    = mesh->weakLaplacian();
@@ -37,13 +37,13 @@ void testSolver(size_t startIndex, double t) {
     solver.compute(flow);
     Eigen::VectorXd uEigen = solver.solve(u0);
 
-    cout << "Residual: " << (flow * u - u0).norm() << endl;
+    cout << "Residual: " << (flow * u - u0).norm() << endl << endl;
 
     // Subtract out mean to solve laplace problem
     Eigen::VectorXd ones = Eigen::VectorXd::Ones(u0.size());
     u0 -= u0.dot(ones) * ones;
 
-    jacobiSolve(u, u0, *mesh, 1e-8, -1);
+    cgSolve(u, u0, *mesh, 1e-8, -1);
     cout << "Residual: " << (L * u - u0).norm() << endl;
 }
 
@@ -62,7 +62,7 @@ std::vector<double> computeDistances(size_t startIndex, double t, bool useCUDA) 
     Eigen::VectorXd u(mesh->vertices.size());
     Eigen::SparseMatrix<double> flow = M + t * L;
     if (useCUDA) {
-        jacobiSolve(u, u0, *mesh, 1e-8, t);
+        cgSolve(u, u0, *mesh, 1e-8, t);
         //cout << "Residual: " << (flow * u  - u0).norm() << endl;
     } else {
         Eigen::SimplicialLDLT<Eigen::SparseMatrix<double>> solver;
@@ -94,7 +94,7 @@ std::vector<double> computeDistances(size_t startIndex, double t, bool useCUDA) 
 
     Eigen::VectorXd phi(mesh->vertices.size());
     if (useCUDA) {
-        jacobiSolve(phi, divX, *mesh, 1e-8, -1);
+        cgSolve(phi, divX, *mesh, 1e-8, -1);
         //cout << "Residual: " << (L * phi - divX).norm() << endl;
     } else {
         Eigen::SimplicialLDLT<Eigen::SparseMatrix<double>> solver;
@@ -162,8 +162,7 @@ int main(int argc, char** argv) {
     std::cout<< "\t" << duration;
 
     start = std::clock();
-    //computeDistances(0, -1, true);
-    testSolver(0, -1);
+    computeDistances(0, -1, true);
     duration = ( std::clock() - start ) / (double) CLOCKS_PER_SEC * 1000;
     std::cout<< "\t" << duration;
 
