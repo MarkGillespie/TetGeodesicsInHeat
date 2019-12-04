@@ -35,17 +35,11 @@ __global__ void vector_cpy(double *out, double *a, int n) {
   }
 }
 
-// Computes alpha = r2 / dot(p, Ap).
-__global__ void compute_alpha(double *out, double *r2, double *r, double *p, double *Ap, int n) {
+// Computes alpha = r2 / pAp
+__global__ void compute_alpha(double *out, double *r2, double *pAp) {
   int index = blockIdx.x * blockDim.x + threadIdx.x;
   if (index == 0) {
-    r2[0] = 0;
-    double denom = 0;
-    for (int i = 0; i < n; i += 1) {
-      r2[0] += r[i] * r[i];
-      denom += p[i] * Ap[i];
-    }
-    out[0] = r2[0] / denom;
+    out[0] = r2[0] / pAp[0];
   }
 }
 
@@ -60,18 +54,11 @@ __global__ void update_x_r(double* x, double* r, double* alpha, double* p, doubl
   }
 }
 
-// Computes beta = dot(r, r) / r2
-// where r2 is the old value of dot(r, r).
-// Also updates r2 to be the new value of dot(r, r)
-__global__ void compute_beta(double *out, double *r2, double *r, int n) {
+// Computes beta = new_r2 / old_r2
+__global__ void compute_beta(double *out, double *new_r2, double *old_r2) {
   int index = blockIdx.x * blockDim.x + threadIdx.x;
   if (index == 0) {
-    out[0] = 1/r2[0];
-    r2[0] = 0;
-    for (int i = 0; i < n; i += 1) {
-      r2[0] += r[i] * r[i];
-    }
-    out[0] *= r2[0];
+    out[0] = new_r2[0] / old_r2[0];
   }
 }
 
@@ -111,7 +98,7 @@ std::vector<std::unordered_map<size_t, double>> edgeWeights(const TetMesh& mesh)
 // If t >= 0, solve (M + tL)x = b, where M is the mass matrix and L is the laplacian
 int  cgSolve(Eigen::VectorXd& xOut, Eigen::VectorXd bVec, const TetMesh& mesh, double tol, double t, bool verbose) {
     double *x, *b, *r, *cotans, *m;
-    double *d_x, *d_b, *d_p, *d_Ap, *d_r, *d_r2, *d_alpha, *d_beta, *d_cotans, *d_m;
+    double *d_x, *d_b, *d_p, *d_Ap, *d_r, *d_old_r2, *d_new_r2,  *d_pAp, *d_alpha, *d_beta, *d_cotans, *d_m;
     int* neighbors, *d_neighbors;
     int N = bVec.size();
 
@@ -180,7 +167,9 @@ int  cgSolve(Eigen::VectorXd& xOut, Eigen::VectorXd bVec, const TetMesh& mesh, d
     cudaMalloc((void**)&d_cotans,    sizeof(double) * N * maxDegree);
     cudaMalloc((void**)&d_alpha,     sizeof(double) * 1);
     cudaMalloc((void**)&d_beta,      sizeof(double) * 1);
-    cudaMalloc((void**)&d_r2,        sizeof(double) * 1);
+    cudaMalloc((void**)&d_old_r2,    sizeof(double) * 1);
+    cudaMalloc((void**)&d_new_r2,    sizeof(double) * 1);
+    cudaMalloc((void**)&d_pAp,       sizeof(double) * 1);
 
     // Transfer data from host to device memory
     cudaMemcpy(d_x,         x,         sizeof(double) * N,             cudaMemcpyHostToDevice);
@@ -193,19 +182,27 @@ int  cgSolve(Eigen::VectorXd& xOut, Eigen::VectorXd bVec, const TetMesh& mesh, d
     bool done = false;
     int iter = 0;
 
+    // https://stackoverflow.com/questions/12400477/retaining-dot-product-on-gpgpu-using-cublas-routine/12401838#12401838
+    cublasHandle_t handle;
+    cublasCreate(&handle);
+    cublasSetPointerMode(handle, CUBLAS_POINTER_MODE_DEVICE); 
+
     computeAp<<<NBLOCK,NTHREAD>>>(d_Ap, d_x, d_cotans, d_neighbors, d_m, t, maxDegree, N);
     vector_sub<<<NBLOCK,NTHREAD>>>(d_r, d_b, d_Ap, N);
     vector_cpy<<<NBLOCK,NTHREAD>>>(d_p, d_r, N);
+    cublasDdot(handle, N, d_r, 1, d_r, 1, d_old_r2);
 
-    cublasHandle_t handle;
     int substeps = 40;
     while (!done) {
       for (int i = 0; i < substeps; ++i) {
          computeAp<<<NBLOCK,NTHREAD>>>(d_Ap, d_p, d_cotans, d_neighbors, d_m, t, maxDegree, N);
-         compute_alpha<<<NBLOCK, NTHREAD>>>(d_alpha, d_r2, d_r, d_p, d_Ap, N);
+         cublasDdot(handle, N, d_p, 1, d_Ap, 1, d_pAp);
+         compute_alpha<<<NBLOCK, NTHREAD>>>(d_alpha, d_old_r2, d_pAp);
          update_x_r<<<NBLOCK, NTHREAD>>>(d_x, d_r, d_alpha, d_p, d_Ap, N);
-         compute_beta<<<NBLOCK, NTHREAD>>>(d_beta, d_r2, d_r, N);
+         cublasDdot(handle, N, d_r, 1, d_r, 1, d_new_r2);
+         compute_beta<<<NBLOCK, NTHREAD>>>(d_beta, d_new_r2, d_old_r2);
          update_p<<<NBLOCK, NTHREAD>>>(d_p, d_beta, d_r, N);
+         vector_cpy<<<NBLOCK,NTHREAD>>>(d_old_r2, d_new_r2, N);
       }
 
       // Transfer data back to host memory
@@ -245,7 +242,8 @@ int  cgSolve(Eigen::VectorXd& xOut, Eigen::VectorXd bVec, const TetMesh& mesh, d
     cudaFree(d_r);
     cudaFree(d_alpha);
     cudaFree(d_beta);
-    cudaFree(d_r2);
+    cudaFree(d_old_r2);
+    cudaFree(d_new_r2);
     cudaFree(d_neighbors);
     cudaFree(d_cotans);
 

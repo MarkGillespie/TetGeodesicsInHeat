@@ -21,7 +21,7 @@ add_library(
     cuda/cg.cuh
     cuda/cg.cu
 )
-target_link_libraries(cudaSolver Eigen3::Eigen tetMesh)
+target_link_libraries(cudaSolver Eigen3::Eigen tetMesh cublas)
 target_compile_options(cudaSolver PRIVATE $<$<COMPILE_LANGUAGE:CUDA>:-gencode arch=compute_70,code=sm_70>)
 
 add_executable(

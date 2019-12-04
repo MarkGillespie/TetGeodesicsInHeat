@@ -4,7 +4,7 @@
 #define NBLOCK  500
 
 // Computes out = b - (tR)x where R is the matrix of off-diagonal entries of the Laplacian
-__global__ void compute_b_minus_Rx(double *out, double *x, double* b, double *cotans, int* neighbors, double t, int meshStride, int n) {
+__global__ void compute_b_minus_Rx(double *out, double *x, double* b, double *cotans, int* neighbors, int meshStride, int n) {
     int index = blockIdx.x * blockDim.x + threadIdx.x;
     int stride = gridDim.x * blockDim.x;
 
@@ -13,22 +13,22 @@ __global__ void compute_b_minus_Rx(double *out, double *x, double* b, double *co
         for (int iN = 0; iN < meshStride; ++iN) {
             int neighbor = neighbors[i * meshStride + iN];
             double weight = cotans[i * meshStride + iN];
-            out[i] += t * weight * x[neighbor];
+            out[i] += weight * x[neighbor];
         }
     }
 }
 
-// Computes out[i] = a[i] / b[i]
-__global__ void vector_div(double *out, double *a, double *b, int n) {
+// Computes x[i] = 2/3 * a[i] / b[i] + 1/3 * x[i]
+__global__ void update_x(double *x, double *a, double *b, int n) {
   int index = blockIdx.x * blockDim.x + threadIdx.x;
   int stride = gridDim.x * blockDim.x;
   for(int i = index; i < n; i += stride){
-    out[i] = a[i] / b[i];
+    x[i] = 2. / 3. * a[i] / b[i] + 1. / 3. * x[i];
   }
 }
 
 // Computes residual i.e. (M + tL)x - b
-__global__ void residual(double *out, double *x, double* b, double *cotans, int* neighbors, double* diag, double t, int meshStride, int n) {
+__global__ void residual(double *out, double *x, double* b, double *cotans, int* neighbors, double* diag, int meshStride, int n) {
     int index = blockIdx.x * blockDim.x + threadIdx.x;
     int stride = gridDim.x * blockDim.x;
 
@@ -37,7 +37,7 @@ __global__ void residual(double *out, double *x, double* b, double *cotans, int*
         for (int iN = 0; iN < meshStride; ++iN) {
             int neighbor = neighbors[i * meshStride + iN];
             double weight = cotans[i * meshStride + iN];
-            out[i] -= t * weight * x[neighbor];
+            out[i] -= weight * x[neighbor];
         }
     }
 }
@@ -89,10 +89,12 @@ int  jacobiSolve(Eigen::VectorXd& xOut, Eigen::VectorXd bVec, const TetMesh& mes
     neighbors = (int*   ) malloc(sizeof(int   ) * N * maxDegree);
 
     // Initialize host arrays
-    for(int i = 0; i < N; i++){
-        x[i] = 0.0f;
-        b[i] = bVec[i];
-        diag[i] = (t < 0)?1e-12:mesh.vertexDualVolumes[i];
+    for(size_t iV = 0; iV < N; iV++){
+        x[iV] = 0.0f;
+        b[iV] = bVec[iV];
+        diag[iV] = (t < 0)?1e-5:mesh.vertexDualVolumes[iV];
+        if (iV < 5)
+            printf("%lu %f\n", iV, diag[iV]);
     }
     if (t < 0) t = 1;
 
@@ -101,11 +103,13 @@ int  jacobiSolve(Eigen::VectorXd& xOut, Eigen::VectorXd bVec, const TetMesh& mes
         double totalWeight = 0;
         for (std::pair<size_t, double> elem : weights[iV]) {
             neighbors[iV * maxDegree + neighborCount] = elem.first;
-            cotans[iV * maxDegree + neighborCount] = elem.second;
-            totalWeight += elem.second;
+            cotans[iV * maxDegree + neighborCount] = t * elem.second;
+            totalWeight += t * elem.second;
             ++neighborCount;
         }
         diag[iV] += t * totalWeight;
+        if (iV < 5)
+            printf("%lu %f\n", iV, diag[iV]);
 
         // Fill in the remaining slots with zeros
         for (size_t iN = neighborCount; iN < maxDegree; ++iN) {
@@ -133,15 +137,15 @@ int  jacobiSolve(Eigen::VectorXd& xOut, Eigen::VectorXd bVec, const TetMesh& mes
     bool done = false;
     int iter = 0;
 
-    int substeps = 400;
+    int substeps = 40;
     while (!done) {
       for (int i = 0; i < substeps; ++i) {
         compute_b_minus_Rx<<<NBLOCK, NTHREAD>>>(d_b_minus_Rx, d_x, d_b, d_cotans, d_neighbors,
-                                                t, maxDegree, N);
-        vector_div<<<NBLOCK, NTHREAD>>>(d_x, d_b_minus_Rx, d_diag, N);
+                                                maxDegree, N);
+        update_x<<<NBLOCK, NTHREAD>>>(d_x, d_b_minus_Rx, d_diag, N);
       }
 
-      residual<<<NBLOCK, NTHREAD>>>(d_r, d_x, d_b, d_cotans, d_neighbors, d_diag, t, maxDegree, N);
+      residual<<<NBLOCK, NTHREAD>>>(d_r, d_x, d_b, d_cotans, d_neighbors, d_diag, maxDegree, N);
 
       // Transfer data back to host memory
       cudaMemcpy(r, d_r, sizeof(double) * N, cudaMemcpyDeviceToHost);
@@ -151,7 +155,7 @@ int  jacobiSolve(Eigen::VectorXd& xOut, Eigen::VectorXd bVec, const TetMesh& mes
       }
       ++iter;
       printf("%d: residual: %f\n", iter, norm);
-      done = (norm < tol) || (iter > 30);
+      done = (norm < tol) || (iter > 5);
     }
 
     // Transfer data back to host memory
@@ -166,7 +170,7 @@ int  jacobiSolve(Eigen::VectorXd& xOut, Eigen::VectorXd bVec, const TetMesh& mes
           result += t * weight * (x[i] - x[neighbor]);
       }
       if (abs(result - b[i]) > tol) {
-          printf("err: vertex %d result[%d] = %f, b[%d] = %f, x[%d] = %f, err=%.10e, iter=%d\n", i, i, result, i, b[i], i, x[i], result-b[i], iter);
+          //printf("err: vertex %d result[%d] = %f, b[%d] = %f, x[%d] = %f, err=%.10e, iter=%d\n", i, i, result, i, b[i], i, x[i], result-b[i], iter);
       }
       xOut[i] = x[i];
     }
