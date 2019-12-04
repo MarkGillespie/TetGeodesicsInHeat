@@ -35,11 +35,11 @@ __global__ void vector_cpy(double *out, double *a, int n) {
   }
 }
 
-// Computes alpha = r2 / pAp
-__global__ void compute_alpha(double *out, double *r2, double *pAp) {
+// Computes out = num / denom
+__global__ void div(double *out, double *num, double *denom) {
   int index = blockIdx.x * blockDim.x + threadIdx.x;
   if (index == 0) {
-    out[0] = r2[0] / pAp[0];
+      *out = *num / *denom;
   }
 }
 
@@ -51,14 +51,6 @@ __global__ void update_x_r(double* x, double* r, double* alpha, double* p, doubl
   for(int i = index; i < n; i += stride){
     x[i] += alpha[0] * p[i];
     r[i] -= alpha[0] * Ap[i];
-  }
-}
-
-// Computes beta = new_r2 / old_r2
-__global__ void compute_beta(double *out, double *new_r2, double *old_r2) {
-  int index = blockIdx.x * blockDim.x + threadIdx.x;
-  if (index == 0) {
-    out[0] = new_r2[0] / old_r2[0];
   }
 }
 
@@ -197,10 +189,10 @@ int  cgSolve(Eigen::VectorXd& xOut, Eigen::VectorXd bVec, const TetMesh& mesh, d
       for (int i = 0; i < substeps; ++i) {
          computeAp<<<NBLOCK,NTHREAD>>>(d_Ap, d_p, d_cotans, d_neighbors, d_m, t, maxDegree, N);
          cublasDdot(handle, N, d_p, 1, d_Ap, 1, d_pAp);
-         compute_alpha<<<NBLOCK, NTHREAD>>>(d_alpha, d_old_r2, d_pAp);
+         div<<<NBLOCK, NTHREAD>>>(d_alpha, d_old_r2, d_pAp);
          update_x_r<<<NBLOCK, NTHREAD>>>(d_x, d_r, d_alpha, d_p, d_Ap, N);
          cublasDdot(handle, N, d_r, 1, d_r, 1, d_new_r2);
-         compute_beta<<<NBLOCK, NTHREAD>>>(d_beta, d_new_r2, d_old_r2);
+         div<<<NBLOCK, NTHREAD>>>(d_beta, d_new_r2, d_old_r2);
          update_p<<<NBLOCK, NTHREAD>>>(d_p, d_beta, d_r, N);
          vector_cpy<<<NBLOCK,NTHREAD>>>(d_old_r2, d_new_r2, N);
       }
