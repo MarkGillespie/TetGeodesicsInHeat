@@ -200,6 +200,7 @@ int  cgSolve(Eigen::VectorXd& xOut, Eigen::VectorXd bVec, const TetMesh& mesh, d
     cublasDdot(handle, N, d_r, 1, d_r, 1, d_old_r2);
 
     int substeps = 40;
+    double norm = 0;
     while (!done) {
       for (int i = 0; i < substeps; ++i) {
          computeAp<<<NBLOCK,NTHREAD>>>(d_Ap, d_p, d_cotans, d_neighbors, d_m, t, maxDegree, N);
@@ -214,30 +215,23 @@ int  cgSolve(Eigen::VectorXd& xOut, Eigen::VectorXd bVec, const TetMesh& mesh, d
 
       // Transfer data back to host memory
       cudaMemcpy(r, d_r, sizeof(double) * N, cudaMemcpyDeviceToHost);
-      double norm = 0;
+      norm = 0;
       for (int i = 0; i < N; i++) {
         norm = fmax(norm, fabs(r[i]));
       }
       ++iter;
       if (verbose) printf("%d: residual: %f\n", iter, norm);
-      done = (norm < tol) || (iter > 30);
+      done = (norm < tol) || (iter > 300);
     }
     cublasDestroy(handle);
+
+    if (norm >= tol)
+        printf("timed out :'(");
 
     // Transfer data back to host memory
     cudaMemcpy(x, d_x, sizeof(double) * N, cudaMemcpyDeviceToHost);
 
-    // Verification
     for (int i = 0; i < N; ++i) {
-      double result = m[i] * x[i];
-      for (int iN = 0; iN < maxDegree; ++iN) {
-          int neighbor  = neighbors[i * maxDegree + iN];
-          double weight =    cotans[i * maxDegree + iN];
-          result += t * weight * (x[i] - x[neighbor]);
-      }
-      if (abs(result - b[i]) > tol) {
-          printf("err: vertex %d result[%d] = %f, b[%d] = %f, x[%d] = %f, err=%.10e, iter=%d\n", i, i, result, i, b[i], i, x[i], result-b[i], iter);
-      }
       xOut[i] = x[i];
     }
 
@@ -347,9 +341,10 @@ int cgSolveCSR(Eigen::VectorXd& xOut, Eigen::VectorXd bVec, const TetMesh& mesh,
     cublasDdot(handle, N, d_r, 1, d_r, 1, d_old_r2);
 
     int substeps = 40;
+    double norm = 0;
     while (!done) {
       for (int i = 0; i < substeps; ++i) {
-        computeApCSR<<<NBLOCK,NTHREAD>>>(d_Ap, d_x, d_cotans, d_neighbors, d_m, d_start_end, t, N);
+        computeApCSR<<<NBLOCK,NTHREAD>>>(d_Ap, d_p, d_cotans, d_neighbors, d_m, d_start_end, t, N);
         cublasDdot(handle, N, d_p, 1, d_Ap, 1, d_pAp);
         div<<<NBLOCK, NTHREAD>>>(d_alpha, d_old_r2, d_pAp);
         update_x_r<<<NBLOCK, NTHREAD>>>(d_x, d_r, d_alpha, d_p, d_Ap, N);
@@ -361,30 +356,22 @@ int cgSolveCSR(Eigen::VectorXd& xOut, Eigen::VectorXd bVec, const TetMesh& mesh,
 
       // Transfer data back to host memory
       cudaMemcpy(r, d_r, sizeof(double) * N, cudaMemcpyDeviceToHost);
-      double norm = 0;
+      norm = 0;
       for (int i = 0; i < N; i++) {
         norm = fmax(norm, fabs(r[i]));
       }
       ++iter;
       if (verbose) printf("%d: residual: %f\n", iter, norm);
-      done = (norm < tol) || (iter > 30);
+      done = (norm < tol) || (iter > 300);
     }
+    if (norm >= tol)
+        printf("timed out :'(");
     cublasDestroy(handle);
 
     // Transfer data back to host memory
     cudaMemcpy(x, d_x, sizeof(double) * N, cudaMemcpyDeviceToHost);
 
-    // Verification
     for (int i = 0; i < N; ++i) {
-      double result = m[i] * x[i];
-      for (int iN = start_end[2 * i]; iN < start_end[2 * i + 1]; ++iN) {
-          int neighbor = neighbors[iN];
-          double weight = cotans[iN];
-          result += t * weight * (x[i] - x[neighbor]);
-      }
-      if (abs(result - b[i]) > tol) {
-          printf("err: vertex %d result[%d] = %f, b[%d] = %f, x[%d] = %f, err=%.10e, iter=%d\n", i, i, result, i, b[i], i, x[i], result-b[i], iter);
-      }
       xOut[i] = x[i];
     }
 

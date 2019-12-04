@@ -16,7 +16,7 @@ TetMesh* mesh;
 
 float diffusionTime = 0.001;
 
-void testSolver(size_t startIndex, double t) {
+void testSolver(size_t startIndex, double t, bool useCSR = false) {
     std::vector<double> distances;
     distances.reserve(mesh->vertices.size());
 
@@ -27,27 +27,29 @@ void testSolver(size_t startIndex, double t) {
     Eigen::VectorXd u0 = Eigen::VectorXd::Map(start.data(), start.size());
 
     Eigen::VectorXd u(mesh->vertices.size());
-    cgSolveCSR(u, u0, *mesh, 1e-8, t);
+    Eigen::VectorXd phi(mesh->vertices.size());
+    Eigen::VectorXd divX = Eigen::VectorXd::Random(mesh->vertices.size());
+    Eigen::VectorXd ones = Eigen::VectorXd::Ones(divX.size());
+    divX -= divX.dot(ones) * ones;
 
-    // Verify;
+
+    if (useCSR) {
+        cgSolveCSR(u, u0, *mesh, 1e-8, t);
+        cgSolveCSR(phi, divX, *mesh, 1e-8, -1);
+    } else {
+        cgSolve(u, u0, *mesh, 1e-8, t);
+        cgSolve(phi, divX, *mesh, 1e-8, -1);
+    }
+
     Eigen::SparseMatrix<double> L    = mesh->weakLaplacian();
     Eigen::SparseMatrix<double> M    = mesh->massMatrix();
+
     Eigen::SparseMatrix<double> flow = M + t * L;
-    Eigen::SimplicialLDLT<Eigen::SparseMatrix<double>> solver;
-    solver.compute(flow);
-    Eigen::VectorXd uEigen = solver.solve(u0);
-
-    cout << "Residual: " << (flow * u - u0).norm() << endl << endl;
-
-    // Subtract out mean to solve laplace problem
-    Eigen::VectorXd ones = Eigen::VectorXd::Ones(u0.size());
-    u0 -= u0.dot(ones) * ones;
-
-    cgSolveCSR(u, u0, *mesh, 1e-8, -1);
-    cout << "Residual: " << (L * u - u0).norm() << endl;
+    cout << "Residual: " << (flow * u  - u0).norm();
+    cout << "\tResidual 2: " << (L * phi - divX).norm() << endl;
 }
 
-std::vector<double> computeDistances(size_t startIndex, double t, bool useCUDA) {
+std::vector<double> computeDistances(size_t startIndex, double t, bool useCUDA, bool useCSR=false) {
     std::vector<double> distances;
     distances.reserve(mesh->vertices.size());
 
@@ -62,8 +64,14 @@ std::vector<double> computeDistances(size_t startIndex, double t, bool useCUDA) 
     Eigen::VectorXd u(mesh->vertices.size());
     Eigen::SparseMatrix<double> flow = M + t * L;
     if (useCUDA) {
-        cgSolveCSR(u, u0, *mesh, 1e-8, t);
-        //cout << "Residual: " << (flow * u  - u0).norm() << endl;
+        if (useCSR) {
+            cgSolveCSR(u, u0, *mesh, 1e-8, t);
+        } else {
+            cgSolve(u, u0, *mesh, 1e-8, t);
+        }
+        double residual = (flow * u - u0).norm();
+        if (residual > 1e-5)
+            cout << "Residual 1: " << residual << endl;
     } else {
         Eigen::SimplicialLDLT<Eigen::SparseMatrix<double>> solver;
         solver.compute(flow);
@@ -94,8 +102,14 @@ std::vector<double> computeDistances(size_t startIndex, double t, bool useCUDA) 
 
     Eigen::VectorXd phi(mesh->vertices.size());
     if (useCUDA) {
-        cgSolveCSR(phi, divX, *mesh, 1e-8, -1);
-        //cout << "Residual: " << (L * phi - divX).norm() << endl;
+        if (useCSR) {
+            cgSolveCSR(phi, divX, *mesh, 1e-8, -1);
+        } else {
+            cgSolve(phi, divX, *mesh, 1e-8, -1);
+        }
+        double residual = (L * phi - divX).norm();
+        if (residual > 1e-5)
+            cout << "Residual 2: " << residual << endl;
     } else {
         Eigen::SimplicialLDLT<Eigen::SparseMatrix<double>> solver;
         solver.compute(L);
@@ -153,6 +167,13 @@ int main(int argc, char** argv) {
     mesh = TetMesh::loadFromFile(filename);
     std::cout << descriptionName << "\t" << mesh->tets.size();
 
+    std::cout << endl;
+    std::cout << "CSR test: " ;
+    testSolver(0, -1, true);
+    std::cout << "non CSR test: ";
+    testSolver(0, -1, false);
+    std::cout << "Done testing " << endl;
+
     std::clock_t start;
     double duration;
 
@@ -162,9 +183,14 @@ int main(int argc, char** argv) {
     std::cout<< "\t" << duration;
 
     start = std::clock();
-    computeDistances(0, -1, true);
+    computeDistances(0, -1, true, true);
     duration = ( std::clock() - start ) / (double) CLOCKS_PER_SEC * 1000;
-    std::cout<< "\t" << duration;
+    std::cout<< "\tCSR: " << duration;
+
+    start = std::clock();
+    computeDistances(0, -1, true, false);
+    duration = ( std::clock() - start ) / (double) CLOCKS_PER_SEC * 1000;
+    std::cout<< "\tmine: " << duration;
 
     std::cout << std::endl;
 
