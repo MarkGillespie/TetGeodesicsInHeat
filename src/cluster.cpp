@@ -18,16 +18,15 @@ std::vector<size_t> axisAlignedCluster(std::vector<Vector3> positions,
 
     if (positions.size() < clusterSize) {
         nClusters = 1;
-        return std::vector<size_t>(positions.size(), 0); // All elements in cluster 0 
+        return std::vector<size_t>(positions.size(), 0); // All elements in cluster 0
     }
 
     Vector3 diag = extent(positions);
-  
-    size_t splitAxis; 
+
+    size_t splitAxis;
     if (diag.x >= diag.y && diag.x >= diag.z) {
         splitAxis = 0; // Split along x axis
-    } else if (diag.y >= diag.x && diag.y >= diag.z) {
-        splitAxis = 1; // Split along y axis
+    } else if (diag.y >= diag.x && diag.y >= diag.z) { splitAxis = 1; // Split along y axis
     } else if (diag.z >= diag.x && diag.z >= diag.y) {
         splitAxis = 2; // Split along z axis
     }
@@ -75,7 +74,8 @@ std::vector<size_t> axisAlignedCluster(std::vector<Vector3> positions,
 }
 
 std::vector<size_t> cluster(TetMesh t, size_t clusterSize) {
-    return axisAlignedCluster(t.vertexPositions(), clusterSize);
+    size_t nClusters = 0;
+    return axisAlignedCluster(t.vertexPositions(), clusterSize, nClusters);
 }
 
 } // CompArch
