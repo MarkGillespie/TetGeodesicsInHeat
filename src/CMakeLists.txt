@@ -13,6 +13,8 @@ add_library(
     tet.cpp
     vector3.h
     vector3.ipp
+    cluster.h
+    cluster.cpp
 )
 target_link_libraries(tetMesh Eigen3::Eigen)
 
