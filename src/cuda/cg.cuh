@@ -13,6 +13,7 @@
 
 
 #include "../tet.h"
+#include "../cluster.h"
 
 using namespace CompArch;
 

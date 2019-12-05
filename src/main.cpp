@@ -169,12 +169,12 @@ int main(int argc, char** argv) {
     mesh = TetMesh::loadFromFile(filename);
     std::cout << descriptionName << "\t" << mesh->tets.size();
 
-    std::cout << endl;
-    std::cout << "CSR test: " ;
-    testSolver(0, -1, true);
-    std::cout << "non CSR test: ";
-    testSolver(0, -1, false);
-    std::cout << "Done testing " << endl;
+    //std::cout << endl;
+    //std::cout << "CSR test: " ;
+    //testSolver(0, -1, true);
+    //std::cout << "non CSR test: ";
+    //testSolver(0, -1, false);
+    //std::cout << "Done testing " << endl;
 
     std::clock_t start;
     double duration;
@@ -184,15 +184,23 @@ int main(int argc, char** argv) {
     duration = ( std::clock() - start ) / (double) CLOCKS_PER_SEC * 1000;
     std::cout<< "\t" << duration;
 
-    start = std::clock();
-    computeDistances(0, -1, true, true);
-    duration = ( std::clock() - start ) / (double) CLOCKS_PER_SEC * 1000;
-    std::cout<< "\tCSR: " << duration;
-
+    // Warm up GPU?
     start = std::clock();
     computeDistances(0, -1, true, false);
     duration = ( std::clock() - start ) / (double) CLOCKS_PER_SEC * 1000;
-    std::cout<< "\tmine: " << duration;
+    //std::cout<< "\t" << duration;
+
+    // Mine
+    start = std::clock();
+    computeDistances(0, -1, true, false);
+    duration = ( std::clock() - start ) / (double) CLOCKS_PER_SEC * 1000;
+    std::cout<< "\t" << duration;
+
+    // CSR
+    start = std::clock();
+    computeDistances(0, -1, true, true);
+    duration = ( std::clock() - start ) / (double) CLOCKS_PER_SEC * 1000;
+    std::cout<< "\t" << duration;
 
     std::cout << std::endl;
 

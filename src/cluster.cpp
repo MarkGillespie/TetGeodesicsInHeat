@@ -1,11 +1,12 @@
 #include "cluster.h"
 namespace CompArch {
 
-Vector3 extent(std::vector<Vector3> ps) {
-    Vector3 min = ps[0];
-    Vector3 max = ps[0];
+Vector3 extent(TetMesh& t, std::vector<size_t> activeVertices) {
+    Vector3 min = t.vertices[activeVertices[0]].position;
+    Vector3 max = t.vertices[activeVertices[0]].position;
 
-    for (auto p : ps) {
+    for (size_t iV : activeVertices) {
+        Vector3 p = t.vertices[iV].position;
         min = componentwiseMin(min, p);
         max = componentwiseMax(max, p);
     }
@@ -13,28 +14,52 @@ Vector3 extent(std::vector<Vector3> ps) {
     return max - min;
 }
 
-std::vector<size_t> axisAlignedCluster(std::vector<Vector3> positions,
-                                       size_t clusterSize, size_t& nClusters) {
+bool contains(std::vector<size_t> v, size_t x) {
+    return std::find(v.begin(), v.end(), x) != v.end();
+}
 
-    if (positions.size() < clusterSize) {
-        nClusters = 1;
-        return std::vector<size_t>(positions.size(), 0); // All elements in cluster 0
+size_t neighborhoodSize(TetMesh& t, std::vector<size_t> activeVertices) {
+    std::vector<size_t> neighbors;
+
+    // Neighborhood contains all active vertices and all neighbors of active vertices
+    size_t neighborhoodSize = activeVertices.size();
+    for (size_t iV : activeVertices) {
+        for (size_t iE : t.vertices[iV].edges) {
+            PartialEdge e = t.edges[iE];
+            if (!contains(activeVertices, e.src) && !contains(neighbors, e.src)){
+                neighborhoodSize++;
+                neighbors.push_back(e.src);
+            } else if (!contains(activeVertices, e.dst) && !contains(neighbors, e.dst)){
+                neighborhoodSize++;
+                neighbors.push_back(e.src);
+            }
+        }
+    }
+    return neighborhoodSize;
+}
+
+std::vector<std::vector<size_t>> axisAlignedCluster(TetMesh& t,
+                                                    std::vector<size_t> activeVertices,
+                                                    size_t clusterSize) {
+
+    if (neighborhoodSize(t, activeVertices) < clusterSize) {
+        std::vector<std::vector<size_t>> singleCluster;
+        singleCluster.push_back(activeVertices);
+        return singleCluster;
     }
 
-    Vector3 diag = extent(positions);
+    Vector3 diag = extent(t, activeVertices);
 
     size_t splitAxis;
-    if (diag.x >= diag.y && diag.x >= diag.z) {
-        splitAxis = 0; // Split along x axis
-    } else if (diag.y >= diag.x && diag.y >= diag.z) { splitAxis = 1; // Split along y axis
-    } else if (diag.z >= diag.x && diag.z >= diag.y) {
-        splitAxis = 2; // Split along z axis
-    }
+
+    if      (diag.x >= diag.y && diag.x >= diag.z) { /* Split along x axis */ splitAxis = 0; }
+    else if (diag.y >= diag.x && diag.y >= diag.z) { /* Split along y axis */ splitAxis = 1; }
+    else if (diag.z >= diag.x && diag.z >= diag.y) { /* Split along z axis */ splitAxis = 2; }
 
     std::vector<std::pair<Vector3, size_t>> taggedPositions;
-    taggedPositions.reserve(positions.size());
-    for (size_t i = 0; i < positions.size(); ++i) {
-        taggedPositions.push_back(std::make_pair(positions[i], i));
+    taggedPositions.reserve(activeVertices.size());
+    for (size_t i = 0; i < activeVertices.size(); ++i) {
+        taggedPositions.push_back(std::make_pair(t.vertices[activeVertices[i]].position, i));
     }
 
     auto axisCompare = [&](std::pair<Vector3, size_t> x, std::pair<Vector3, size_t> y) {
@@ -51,31 +76,20 @@ std::vector<size_t> axisAlignedCluster(std::vector<Vector3> positions,
                                                         taggedPositions.begin() + taggedPositions.size()/2);
     std::vector<std::pair<Vector3, size_t>> taggedUpper(taggedPositions.begin() + taggedPositions.size()/2,
                                                         taggedPositions.end());
-    std::vector<Vector3> lower, upper;
-    for (auto p : taggedLower) lower.push_back(p.first);
-    for (auto p : taggedUpper) upper.push_back(p.first);
+    std::vector<size_t> lower, upper;
+    for (auto p : taggedLower) lower.push_back(p.second);
+    for (auto p : taggedUpper) upper.push_back(p.second);
 
-    size_t nLowerClusters, nUpperClusters;
-    std::vector<size_t> lowerClusters = axisAlignedCluster(lower, clusterSize, nLowerClusters);
-    std::vector<size_t> upperClusters = axisAlignedCluster(upper, clusterSize, nUpperClusters);
+    std::vector<std::vector<size_t>> lowerClusters = axisAlignedCluster(t, lower, clusterSize);
+    std::vector<std::vector<size_t>> upperClusters = axisAlignedCluster(t, upper, clusterSize);
 
-    nClusters = nLowerClusters + nUpperClusters;
-    std::vector<size_t> clusters(positions.size(), 0);
-    for (size_t i = 0; i < lowerClusters.size(); ++i) {
-        size_t vIdx = taggedLower[i].second;
-        clusters[vIdx] = lowerClusters[i];
-    }
-    for (size_t i = 0; i < upperClusters.size(); ++i) {
-        size_t vIdx = taggedUpper[i].second;
-        clusters[vIdx] = nLowerClusters + upperClusters[i];
-    }
+    lowerClusters.insert(lowerClusters.end(), upperClusters.begin(), upperClusters.end());
 
-    return clusters;
+    return lowerClusters;
 }
 
-std::vector<size_t> cluster(TetMesh t, size_t clusterSize) {
-    size_t nClusters = 0;
-    return axisAlignedCluster(t.vertexPositions(), clusterSize, nClusters);
+std::vector<std::vector<size_t>> cluster(TetMesh& t, size_t clusterSize) {
+    return axisAlignedCluster(t, clusterSize);
 }
 
 } // CompArch

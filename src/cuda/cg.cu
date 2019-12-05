@@ -1,7 +1,7 @@
 #include "cg.cuh"
 
 #define NTHREAD 256
-#define NBLOCK  500
+#define NBLOCK 500
 
 // Computes out = (M + tL)p
 __global__ void computeAp(double *out, double *p, double *cotans, int* neighbors, double* m, double t, int meshStride, int n) {
@@ -15,16 +15,15 @@ __global__ void computeAp(double *out, double *p, double *cotans, int* neighbors
             out[i] += t * weight * (p[i] - p[neighbor]);
         }
     }
-}
-
+} 
 // Computes out = (M + tL)p
-__global__ void computeApCSR(double *out, double *p, double *cotans, int* neighbors, double* m, int* start_end, double t, int n) {
+__global__ void computeApCSR(double *out, double *p, double *cotans, int* neighbors, double* m, int* end, double t, int n) {
     int index = blockIdx.x * blockDim.x + threadIdx.x;
     int stride = gridDim.x * blockDim.x;
 
     for(int i = index; i < n; i += stride){
         out[i] = m[i] * p[i];
-        for (int iN = start_end[2 * i]; iN < start_end[2 * i + 1]; ++iN) {
+        for (int iN = end[i-1]; iN < end[i]; ++iN) {
             int neighbor = neighbors[iN];
             double weight = cotans[iN];
             out[i] += t * weight * (p[i] - p[neighbor]);
@@ -264,7 +263,7 @@ int  cgSolve(Eigen::VectorXd& xOut, Eigen::VectorXd bVec, const TetMesh& mesh, d
 int cgSolveCSR(Eigen::VectorXd& xOut, Eigen::VectorXd bVec, const TetMesh& mesh, double tol, double t, bool verbose) {
     double *x, *b, *r, *cotans, *m;
     double *d_x, *d_b, *d_p, *d_Ap, *d_r, *d_old_r2, *d_new_r2,  *d_pAp, *d_alpha, *d_beta, *d_cotans, *d_m;
-    int* neighbors, *d_neighbors, *start_end, *d_start_end;
+    int* neighbors, *d_neighbors, *end, *d_end;
     int N = bVec.size();
 
     std::vector<std::unordered_map<size_t, double>> weights = edgeWeights(mesh);
@@ -280,7 +279,7 @@ int cgSolveCSR(Eigen::VectorXd& xOut, Eigen::VectorXd bVec, const TetMesh& mesh,
     m         = (double*) malloc(sizeof(double) * N);
     cotans    = (double*) malloc(sizeof(double) * nEdges);
     neighbors = (int*   ) malloc(sizeof(int   ) * nEdges);
-    start_end = (int*   ) malloc(sizeof(int   ) * 2 * N);
+    end = (int*   ) malloc(sizeof(int   ) * 2 * N);
 
     // Initialize host arrays
     for(int i = 0; i < N; i++){
@@ -292,14 +291,14 @@ int cgSolveCSR(Eigen::VectorXd& xOut, Eigen::VectorXd bVec, const TetMesh& mesh,
     if (t < 0) t = 1;
 
     int pos = 0;
+    end[0] = 0;
     for (size_t iV = 0; iV < mesh.vertices.size(); ++iV) {
-        start_end[2 * iV] = pos;
         for (std::pair<size_t, double> elem : weights[iV]) {
             neighbors[pos] = elem.first;
             cotans[pos] = elem.second;
             pos += 1;
         }
-        start_end[2 * iV + 1] = pos;
+        end[iV] = pos;
     }
 
     // Allocate device memory
@@ -311,7 +310,7 @@ int cgSolveCSR(Eigen::VectorXd& xOut, Eigen::VectorXd bVec, const TetMesh& mesh,
     cudaMalloc((void**)&d_m,         sizeof(double) * N);
     cudaMalloc((void**)&d_neighbors, sizeof(int   ) * nEdges);
     cudaMalloc((void**)&d_cotans,    sizeof(double) * nEdges);
-    cudaMalloc((void**)&d_start_end, sizeof(int   ) * 2 * N);
+    cudaMalloc((void**)&d_end,       sizeof(int   ) * (N+1));
     cudaMalloc((void**)&d_alpha,     sizeof(double) * 1);
     cudaMalloc((void**)&d_beta,      sizeof(double) * 1);
     cudaMalloc((void**)&d_old_r2,    sizeof(double) * 1);
@@ -324,7 +323,7 @@ int cgSolveCSR(Eigen::VectorXd& xOut, Eigen::VectorXd bVec, const TetMesh& mesh,
     cudaMemcpy(d_b,         b,         sizeof(double) * N,      cudaMemcpyHostToDevice);
     cudaMemcpy(d_m,         m,         sizeof(double) * N,      cudaMemcpyHostToDevice);
     cudaMemcpy(d_neighbors, neighbors, sizeof(int   ) * nEdges, cudaMemcpyHostToDevice);
-    cudaMemcpy(d_start_end, start_end, sizeof(int   ) * 2 * N,  cudaMemcpyHostToDevice);
+    cudaMemcpy(d_end,       end,       sizeof(int   ) * (N+1),  cudaMemcpyHostToDevice);
     cudaMemcpy(d_cotans,    cotans,    sizeof(double) * nEdges, cudaMemcpyHostToDevice);
 
     bool done = false;
@@ -335,7 +334,7 @@ int cgSolveCSR(Eigen::VectorXd& xOut, Eigen::VectorXd bVec, const TetMesh& mesh,
     cublasCreate(&handle);
     cublasSetPointerMode(handle, CUBLAS_POINTER_MODE_DEVICE);
 
-    computeApCSR<<<NBLOCK,NTHREAD>>>(d_Ap, d_x, d_cotans, d_neighbors, d_m, d_start_end, t, N);
+    computeApCSR<<<NBLOCK,NTHREAD>>>(d_Ap, d_x, d_cotans, d_neighbors, d_m, d_end, t, N);
     vector_sub<<<NBLOCK,NTHREAD>>>(d_r, d_b, d_Ap, N);
     vector_cpy<<<NBLOCK,NTHREAD>>>(d_p, d_r, N);
     cublasDdot(handle, N, d_r, 1, d_r, 1, d_old_r2);
@@ -344,7 +343,7 @@ int cgSolveCSR(Eigen::VectorXd& xOut, Eigen::VectorXd bVec, const TetMesh& mesh,
     double norm = 0;
     while (!done) {
       for (int i = 0; i < substeps; ++i) {
-        computeApCSR<<<NBLOCK,NTHREAD>>>(d_Ap, d_p, d_cotans, d_neighbors, d_m, d_start_end, t, N);
+        computeApCSR<<<NBLOCK,NTHREAD>>>(d_Ap, d_p, d_cotans, d_neighbors, d_m, d_end, t, N);
         cublasDdot(handle, N, d_p, 1, d_Ap, 1, d_pAp);
         div<<<NBLOCK, NTHREAD>>>(d_alpha, d_old_r2, d_pAp);
         update_x_r<<<NBLOCK, NTHREAD>>>(d_x, d_r, d_alpha, d_p, d_Ap, N);
@@ -386,7 +385,7 @@ int cgSolveCSR(Eigen::VectorXd& xOut, Eigen::VectorXd bVec, const TetMesh& mesh,
     cudaFree(d_old_r2);
     cudaFree(d_new_r2);
     cudaFree(d_neighbors);
-    cudaFree(d_start_end);
+    cudaFree(d_end);
     cudaFree(d_cotans);
 
     // Deallocate host memory

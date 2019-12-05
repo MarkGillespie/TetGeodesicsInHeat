@@ -2,6 +2,6 @@
 #include <vector>
 
 namespace CompArch{
-std::vector<size_t> cluster(TetMesh t, size_t clusterSize);
-std::vector<size_t> axisAlignedCluster(std::vector<Vector3> positions, size_t clusterSize, size_t& nClusters);
+std::vector<std::vector<size_t>> cluster(TetMesh& t, std::vector<size_t> activeVertices, size_t clusterSize);
+std::vector<std::vector<size_t>> axisAlignedCluster(TetMesh& t, size_t clusterSize);
 } // CompArch
