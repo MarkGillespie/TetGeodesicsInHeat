@@ -30,6 +30,7 @@ void testSolver(size_t startIndex, double t, bool useCSR = false) {
     Eigen::VectorXd phi(mesh->vertices.size());
     Eigen::VectorXd divX = Eigen::VectorXd::Random(mesh->vertices.size());
     Eigen::VectorXd ones = Eigen::VectorXd::Ones(divX.size());
+    ones.normalize();
     divX -= divX.dot(ones) * ones;
 
 
@@ -98,6 +99,7 @@ std::vector<double> computeDistances(size_t startIndex, double t, bool useCUDA, 
     }
 
     Eigen::VectorXd ones = Eigen::VectorXd::Ones(divX.size());
+    ones.normalize();
     divX -= divX.dot(ones) * ones;
 
     Eigen::VectorXd phi(mesh->vertices.size());

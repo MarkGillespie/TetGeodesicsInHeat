@@ -210,7 +210,7 @@ int  cgSolve(Eigen::VectorXd& xOut, Eigen::VectorXd bVec, const TetMesh& mesh, d
          cublasDdot(handle, N, d_r, 1, d_r, 1, d_new_r2);
          div<<<NBLOCK, NTHREAD>>>(d_beta, d_new_r2, d_old_r2);
          update_p<<<NBLOCK, NTHREAD>>>(d_p, d_beta, d_r, N);
-         vector_cpy<<<NBLOCK,NTHREAD>>>(d_old_r2, d_new_r2, N);
+         vector_cpy<<<NBLOCK,NTHREAD>>>(d_old_r2, d_new_r2, 1);
       }
 
       // Transfer data back to host memory
@@ -333,7 +333,7 @@ int cgSolveCSR(Eigen::VectorXd& xOut, Eigen::VectorXd bVec, const TetMesh& mesh,
     // https://stackoverflow.com/questions/12400477/retaining-dot-product-on-gpgpu-using-cublas-routine/12401838#12401838
     cublasHandle_t handle;
     cublasCreate(&handle);
-    cublasSetPointerMode(handle, CUBLAS_POINTER_MODE_DEVICE); 
+    cublasSetPointerMode(handle, CUBLAS_POINTER_MODE_DEVICE);
 
     computeApCSR<<<NBLOCK,NTHREAD>>>(d_Ap, d_x, d_cotans, d_neighbors, d_m, d_start_end, t, N);
     vector_sub<<<NBLOCK,NTHREAD>>>(d_r, d_b, d_Ap, N);
@@ -351,7 +351,7 @@ int cgSolveCSR(Eigen::VectorXd& xOut, Eigen::VectorXd bVec, const TetMesh& mesh,
         cublasDdot(handle, N, d_r, 1, d_r, 1, d_new_r2);
         div<<<NBLOCK, NTHREAD>>>(d_beta, d_new_r2, d_old_r2);
         update_p<<<NBLOCK, NTHREAD>>>(d_p, d_beta, d_r, N);
-        vector_cpy<<<NBLOCK,NTHREAD>>>(d_old_r2, d_new_r2, N);
+        vector_cpy<<<NBLOCK,NTHREAD>>>(d_old_r2, d_new_r2, 1);
       }
 
       // Transfer data back to host memory
