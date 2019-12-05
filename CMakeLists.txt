@@ -59,6 +59,7 @@ else()
   # unrecognized
   message( FATAL_ERROR "Unrecognized compiler [${CMAKE_CXX_COMPILER_ID}]" )
 endif()
+set(CMAKE_CUDA_STANDARD 11)
 
 
 # == Deps
