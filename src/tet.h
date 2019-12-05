@@ -1,10 +1,12 @@
+#pragma once
+
 #include "vector3.h"
+#include <cmath>
 #include <fstream>
 #include <glm/glm.hpp>
 #include <iostream>
 #include <sstream>
 #include <vector>
-#include <cmath>
 
 #include <Eigen/SparseCholesky>
 #include <Eigen/SparseCore>
@@ -33,8 +35,8 @@ class Tet {
   public:
     std::array<size_t, 4> verts; // indices of vertices
     std::array<size_t, 6> edges; // indices of PartialEdges
-    std::array<int, 4> neigh; // indices of neighboring Tets
-                               // neigh[i] is opposite verts[i]
+    std::array<int, 4> neigh;    // indices of neighboring Tets
+                                 // neigh[i] is opposite verts[i]
 
     // Partial edges stored in order:
     //   for (size_t i = 0; i < 4; ++i) {
@@ -79,7 +81,8 @@ class TetMesh {
     Eigen::SparseMatrix<double> weakLaplacian();
     Eigen::SparseMatrix<double> massMatrix();
 
-    std::vector<double> distances(std::vector<double> start, double t, bool verbose=false);
+    std::vector<double> distances(std::vector<double> start, double t,
+                                  bool verbose = false);
 
     std::array<Vector3, 4> layOutIntrinsicTet(Tet t);
 

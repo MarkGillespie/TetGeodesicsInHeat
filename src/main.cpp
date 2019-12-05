@@ -1,6 +1,7 @@
 #include "polyscope/polyscope.h"
 #include "polyscope/tet_mesh.h"
 
+#include "cluster.h"
 #include "tet.h"
 
 #include "args/args.hxx"
@@ -94,39 +95,28 @@ int main(int argc, char** argv) {
             polyscope::registerTetMesh("tMesh", mesh->vertexPositions(),
                                        mesh->tetList(), mesh->neighborList());
         polyscope::getTetMesh("tMesh");
-
-        // std::vector<glm::vec3> faceNormals;
-        // for (auto f : mesh->faceList()) {
-        //     Vector3 a = mesh->vertices[f[0]].position;
-        //     Vector3 b = mesh->vertices[f[1]].position;
-        //     Vector3 c = mesh->vertices[f[2]].position;
-
-        //     Vector3 N = cross(b - a, c - a);
-        //     N /= N.norm();
-        //     faceNormals.emplace_back(glm::vec3{N.x, N.y, N.z});
-        // }
-        // psMesh->addFaceVectorQuantity("normal", faceNormals);
-        // psMesh->addVertexScalarQuantity("volumes", mesh->vertexDualVolumes);
-        //
-
         computeDistances(-1);
+
+        std::vector<std::vector<size_t>> clusters = cluster(*mesh, 256);
+        size_t nC                                 = clusters.size();
+        size_t period                             = 37;
+        std::vector<int> clusterIndex(mesh->vertices.size(), -1);
+        double avgSize = 0;
+        for (size_t iC = 0; iC < clusters.size(); ++iC) {
+            std::vector<size_t> cluster = clusters[iC];
+            avgSize += cluster.size();
+            for (size_t iV : cluster) {
+                clusterIndex[iV] = (37 * iC) % nC;
+            }
+        }
+        avgSize /= nC;
+
+        cout << "nClusters: " << nC << "\t avg cluster size: " << avgSize
+             << endl;
+
+
+        psMesh->addVertexScalarQuantity("cluster", clusterIndex);
     }
-
-    Eigen::SparseMatrix<double> L    = mesh->weakLaplacian();
-    Eigen::SparseMatrix<double> M    = mesh->massMatrix();
-    Eigen::SparseMatrix<double> flow = M + 0.1 * L;
-    Eigen::SimplicialLDLT<Eigen::SparseMatrix<double>> solver;
-
-    std::clock_t start;
-    double duration;
-
-    start = std::clock();
-
-    solver.compute(flow);
-
-    duration = (std::clock() - start) / (double)CLOCKS_PER_SEC * 1000;
-
-    std::cout << mesh->tets.size() << "\t" << duration << "\n";
 
     if (vis) {
         // Give control to the polyscope gui
