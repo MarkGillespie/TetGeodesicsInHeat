@@ -16,7 +16,7 @@ TetMesh* mesh;
 
 float diffusionTime = 0.001;
 
-void testSolver(size_t startIndex, double t, bool useCSR = false) {
+void testSolver(size_t startIndex, double t, bool useClusteredCSR = false) {
     std::vector<double> distances;
     distances.reserve(mesh->vertices.size());
 
@@ -34,23 +34,26 @@ void testSolver(size_t startIndex, double t, bool useCSR = false) {
     divX -= divX.dot(ones) * ones;
 
 
-    if (useCSR) {
-        cgSolveCSR(u, u0, *mesh, 1e-8, t);
-        cgSolveCSR(phi, divX, *mesh, 1e-8, -1);
-    } else {
-        cgSolve(u, u0, *mesh, 1e-8, t);
-        cgSolve(phi, divX, *mesh, 1e-8, -1);
-    }
 
     Eigen::SparseMatrix<double> L    = mesh->weakLaplacian();
     Eigen::SparseMatrix<double> M    = mesh->massMatrix();
 
     Eigen::SparseMatrix<double> flow = M + t * L;
+    if (useClusteredCSR) {
+        Eigen::VectorXd u0Copy(u0);
+        cgSolveClusteredCSR(u, u0Copy, *mesh, 1e-8, t);
+        //cgSolveClusteredCSR(phi, divX, *mesh, 1e-8, -1);
+        for (size_t i = 0; i < 10; ++i)
+            cout << "flow * u0: " << (flow * u0)[i] << "\t gpu: " << u0Copy[i] << endl;
+    } else {
+        cgSolve(u, u0, *mesh, 1e-8, t);
+        cgSolve(phi, divX, *mesh, 1e-8, -1);
+    }
     cout << "Residual: " << (flow * u  - u0).norm();
-    cout << "\tResidual 2: " << (L * phi - divX).norm() << endl;
+    //cout << "\tResidual 2: " << (L * phi - divX).norm() << endl;
 }
 
-std::vector<double> computeDistances(size_t startIndex, double t, bool useCUDA, bool useCSR=false) {
+std::vector<double> computeDistances(size_t startIndex, double t, bool useCUDA, bool useClusteredCSR=false) {
     std::vector<double> distances;
     distances.reserve(mesh->vertices.size());
 
@@ -65,8 +68,8 @@ std::vector<double> computeDistances(size_t startIndex, double t, bool useCUDA, 
     Eigen::VectorXd u(mesh->vertices.size());
     Eigen::SparseMatrix<double> flow = M + t * L;
     if (useCUDA) {
-        if (useCSR) {
-            cgSolveCSR(u, u0, *mesh, 1e-8, t);
+        if (useClusteredCSR) {
+            cgSolveClusteredCSR(u, u0, *mesh, 1e-8, t);
         } else {
             cgSolve(u, u0, *mesh, 1e-8, t);
         }
@@ -104,8 +107,8 @@ std::vector<double> computeDistances(size_t startIndex, double t, bool useCUDA, 
 
     Eigen::VectorXd phi(mesh->vertices.size());
     if (useCUDA) {
-        if (useCSR) {
-            cgSolveCSR(phi, divX, *mesh, 1e-8, -1);
+        if (useClusteredCSR) {
+            cgSolveClusteredCSR(phi, divX, *mesh, 1e-8, -1);
         } else {
             cgSolve(phi, divX, *mesh, 1e-8, -1);
         }
@@ -167,42 +170,40 @@ int main(int argc, char** argv) {
     }
 
     mesh = TetMesh::loadFromFile(filename);
-    std::cout << descriptionName << "\t" << mesh->tets.size();
 
-    //std::cout << endl;
-    //std::cout << "CSR test: " ;
-    //testSolver(0, -1, true);
-    //std::cout << "non CSR test: ";
+    std::cout << endl;
+    std::cout << "ClusteredCSR test: " ;
+    testSolver(0, -1, true);
+    //std::cout << "non ClusteredCSR test: ";
     //testSolver(0, -1, false);
-    //std::cout << "Done testing " << endl;
-
+    std::cout << "Done testing " << endl;
+/*
     std::clock_t start;
-    double duration;
+    double eigenDuration, CSRduration, semiDenseDuration;
 
     start = std::clock();
     computeDistances(0, -1, false);
-    duration = ( std::clock() - start ) / (double) CLOCKS_PER_SEC * 1000;
-    std::cout<< "\t" << duration;
+    eigenDuration = ( std::clock() - start ) / (double) CLOCKS_PER_SEC * 1000;
 
     // Warm up GPU?
-    start = std::clock();
     computeDistances(0, -1, true, false);
-    duration = ( std::clock() - start ) / (double) CLOCKS_PER_SEC * 1000;
-    //std::cout<< "\t" << duration;
 
     // Mine
     start = std::clock();
     computeDistances(0, -1, true, false);
-    duration = ( std::clock() - start ) / (double) CLOCKS_PER_SEC * 1000;
-    std::cout<< "\t" << duration;
+    CSRduration = ( std::clock() - start ) / (double) CLOCKS_PER_SEC * 1000;
 
-    // CSR
+    // ClusteredCSR
     start = std::clock();
     computeDistances(0, -1, true, true);
-    duration = ( std::clock() - start ) / (double) CLOCKS_PER_SEC * 1000;
-    std::cout<< "\t" << duration;
+    semiDenseDuration = ( std::clock() - start ) / (double) CLOCKS_PER_SEC * 1000;
+
+    std::cout << descriptionName << "\t" << mesh->tets.size();
+    std::cout<< "\t" << eigenDuration;
+    std::cout<< "\t" << CSRduration;
+    std::cout<< "\t" << semiDenseDuration;
 
     std::cout << std::endl;
-
+*/
     return EXIT_SUCCESS;
 }
