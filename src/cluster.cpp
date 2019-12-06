@@ -19,6 +19,7 @@ bool contains(std::vector<size_t> v, size_t x) {
 }
 
 size_t neighborhoodSize(const TetMesh& t, std::vector<size_t> activeVertices, std::vector<size_t>& neighbors) {
+    if (activeVertices.size() == 0) return 0;
     // Neighborhood contains all active vertices and all neighbors of active
     // vertices
     size_t neighborhoodSize = activeVertices.size();

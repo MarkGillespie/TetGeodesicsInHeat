@@ -38,23 +38,18 @@ void testSolver(size_t startIndex, double t, bool useCSR = false) {
     divX = L * divX;
 
     if (useCSR) {
-        cgSolveCSR(u, u0, *mesh, 1e-8, t, false, true);
-        cgSolveCSR(phi, divX, *mesh, 1e-8, -1, false, true);
+        cgSolveClusteredCSR(u, u0, *mesh, 1e-8, t, false);
+
+        cout << std::fixed;
+        for (int i = 0; i < 5; ++i) 
+            cout << "flow * u0[" << i << "]: " << (flow * u0)[i] << "\tu[" << i << "]" << u[i] << endl;
+        //cgSolveClusteredCSR(phi, divX, *mesh, 1e-8, -1, false);
     } else {
         cgSolve(u, u0, *mesh, 1e-8, t);
         cgSolve(phi, divX, *mesh, 1e-8, -1);
     }
-    cout << "Residual: " << (flow * u  - u0).norm();
-    cout << "\tResidual 2: " << (L * phi - divX).norm() << endl;
-
-    if (useCSR) {
-        cgSolveCSR(u, u0, *mesh, 1e-8, t, false, true);
-    } else {
-        cgSolve(u, u0, *mesh, 1e-8, t);
-    }
-    double residual = (flow * u - u0).norm();
-    if (residual > 1e-5)
-        cout << "Residual 1: " << residual << endl;
+    //cout << "Residual: " << (flow * u  - u0).norm();
+    //cout << "\tResidual 2: " << (L * phi - divX).norm() << endl;
 
     return;
 }
@@ -177,14 +172,13 @@ int main(int argc, char** argv) {
 
     mesh = TetMesh::loadFromFile(filename);
 
-    /*
     std::cout << "CSR test: " ;
     testSolver(0, -1, true);
     std::cout << "non CSR test: ";
-    testSolver(0, -1, false);
+    //testSolver(0, -1, false);
     std::cout << "Done testing " << endl;
-    */
 
+/*
     std::clock_t start;
     double eigenDuration, CSRduration, semiDenseDuration, CSRorderedDuration;
 
@@ -217,6 +211,7 @@ int main(int argc, char** argv) {
     std::cout<< "\t" << CSRorderedDuration;
 
     std::cout << std::endl;
+    */
 
 
     //std::vector<std::unordered_map<size_t, double>> weights = edgeWeights(*mesh);
